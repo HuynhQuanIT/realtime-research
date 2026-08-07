@@ -1,0 +1,20 @@
+{
+  "method": "poll",
+  "clients": 50,
+  "durationSec": 20,
+  "connectedClients": 50,
+  "failedClients": 0,
+  "samples": 838,
+  "latencyMs": {
+    "avg": 1318.939140811456,
+    "p50": 1010,
+    "p95": 2046,
+    "p99": 2089,
+    "max": 2093
+  },
+  "ramMB": {
+    "avg": 59.19105263157894,
+    "max": 60.19
+  },
+  "cpuUserMsPerSample": 20.526315789473685
+}

@@ -1,0 +1,20 @@
+{
+  "method": "sse",
+  "clients": 500,
+  "durationSec": 20,
+  "connectedClients": 500,
+  "failedClients": 0,
+  "samples": 9500,
+  "latencyMs": {
+    "avg": 27.638315789473683,
+    "p50": 25,
+    "p95": 57,
+    "p99": 95,
+    "max": 103
+  },
+  "ramMB": {
+    "avg": 99.1136842105263,
+    "max": 99.3
+  },
+  "cpuUserMsPerSample": 18.105263157894736
+}

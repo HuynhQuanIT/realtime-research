@@ -1,0 +1,20 @@
+{
+  "method": "ws",
+  "clients": 200,
+  "durationSec": 30,
+  "connectedClients": 200,
+  "failedClients": 0,
+  "samples": 5800,
+  "latencyMs": {
+    "avg": 14.847241379310345,
+    "p50": 12,
+    "p95": 32,
+    "p99": 40,
+    "max": 43
+  },
+  "ramMB": {
+    "avg": 65.05172413793103,
+    "max": 65.27
+  },
+  "cpuUserMsPerSample": 4.862068965517241
+}

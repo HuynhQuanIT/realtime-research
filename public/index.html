@@ -1,0 +1,132 @@
+<!DOCTYPE html>
+<html lang="vi">
+<head>
+<meta charset="UTF-8" />
+<meta name="viewport" content="width=device-width, initial-scale=1.0" />
+<title>Notify Bench — Realtime Transport Comparison</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=IBM+Plex+Mono:wght@400;500;600;700&family=Plus+Jakarta+Sans:wght@400;500;600;700&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="/styles.css">
+<script src="/vendor/chart.umd.js"></script>
+</head>
+<body>
+<div class="wrap">
+
+  <header class="hero">
+    <div class="eyebrow"><span class="dot"></span> notify-benchmark · realtime transport comparison</div>
+    <h1>Polling <span>vs</span> SSE <span>vs</span> WebSocket <span>vs</span> FCM</h1>
+    <p class="lede">So sánh 4 cơ chế đẩy dữ liệu thời gian thực, cùng xuất phát từ một nguồn duy nhất để đảm bảo công bằng khi đo độ trễ.</p>
+    <div class="source-flow">
+      <span>Postgres <b>INSERT</b></span><span class="arrow">→</span>
+      <span><b>trigger</b> pg_notify</span><span class="arrow">→</span>
+      <span>Node <b>LISTEN</b> + EventEmitter</span><span class="arrow">→</span>
+      <span>Polling</span><span class="arrow">/</span>
+      <span>SSE</span><span class="arrow">/</span>
+      <span>WebSocket</span><span class="arrow">/</span>
+      <span>FCM</span>
+    </div>
+  </header>
+
+  <section>
+    <div class="section-head">
+      <h2>Live Demo</h2>
+      <p>Gửi 1 message thật &mdash; xem từng kênh nhận và đo độ trễ ngay trên trình duyệt của bạn.</p>
+    </div>
+
+    <div class="controls">
+      <button id="sendBtn">Gửi message test</button>
+      <span id="sentCount" class="mono">Chưa gửi message nào</span>
+      <span class="status-pill" id="wsStatus"><span class="dot" style="background:var(--muted);width:6px;height:6px;border-radius:50%;"></span> WS: đang kết nối…</span>
+    </div>
+
+    <div class="tabbar" id="tabbar">
+      <button class="tab active" data-tab="all">Tất cả</button>
+      <button class="tab" data-tab="poll">Polling</button>
+      <button class="tab" data-tab="sse">SSE</button>
+      <button class="tab" data-tab="ws">WebSocket</button>
+      <button class="tab" data-tab="fcm">FCM</button>
+    </div>
+
+    <div class="grid4" id="chanGrid">
+      <div class="chan" id="chan-poll" data-method="poll">
+        <div class="name">Polling</div>
+        <div class="desc">Client tự hỏi lại mỗi 2000ms</div>
+        <div class="reading" id="poll-reading">— <small>ms</small></div>
+        <div class="track"><div class="bead" id="poll-bead"></div></div>
+        <div class="meta"><span>Nhận được</span><b id="poll-count">0</b></div>
+      </div>
+      <div class="chan" id="chan-sse" data-method="sse">
+        <div class="name">SSE</div>
+        <div class="desc">Server push 1 chiều, giữ kết nối HTTP mở</div>
+        <div class="reading" id="sse-reading">— <small>ms</small></div>
+        <div class="track"><div class="bead" id="sse-bead"></div></div>
+        <div class="meta"><span>Nhận được</span><b id="sse-count">0</b></div>
+      </div>
+      <div class="chan" id="chan-ws" data-method="ws">
+        <div class="name">WebSocket</div>
+        <div class="desc">Hai chiều, kết nối liên tục</div>
+        <div class="reading" id="ws-reading">— <small>ms</small></div>
+        <div class="track"><div class="bead" id="ws-bead"></div></div>
+        <div class="meta"><span>Nhận được</span><b id="ws-count">0</b></div>
+      </div>
+      <div class="chan" id="chan-fcm" data-method="fcm">
+        <div class="name">FCM (mock)</div>
+        <div class="desc">Push qua /fcm/stream, round-trip giả lập 50–150ms</div>
+        <div class="reading" id="fcm-reading">— <small>ms</small></div>
+        <div class="track"><div class="bead" id="fcm-bead"></div></div>
+        <div class="meta"><span>Nhận được</span><b id="fcm-count">0</b></div>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Chat thử nghiệm 2 chiều</h2>
+      <p>Mở tab này trên 2 thiết bị/2 trình duyệt khác nhau, đóng vai 2 người chat — mỗi tin nhắn hiện huy hiệu kênh nào đưa nó tới bạn <b>đầu tiên</b>. Đặt cùng tên "Phòng" để chat riêng với nhau, để trống dùng phòng chung <code>lobby</code>.</p>
+    </div>
+    <div class="chat-shell">
+      <div class="chat-panel">
+        <div class="chat-topbar">
+          <label for="chatName">Tên của bạn</label>
+          <input id="chatName" type="text" maxlength="20" />
+          <label for="chatRoom" style="margin-left:8px;">Phòng</label>
+          <input id="chatRoom" type="text" maxlength="30" placeholder="lobby" style="width:120px;" />
+        </div>
+        <div class="room-tabbar" id="roomTabbar"></div>
+        <div class="chat-log" id="chatLog"></div>
+        <div class="chat-inputbar">
+          <input id="chatInput" type="text" placeholder="Nhắn gì đó rồi Enter…" maxlength="500" />
+          <button id="chatSendBtn">Gửi</button>
+        </div>
+      </div>
+      <div class="tally-panel">
+        <h4>Kênh về đầu</h4>
+        <div id="tallyList"></div>
+        <p class="tally-note">Mỗi tin nhắn chỉ tính cho kênh <b>đưa tới trình duyệt này trước nhất</b> — 3 kênh còn lại vẫn nhận được, chỉ không "thắng". Số liệu định tính, bổ sung cho benchmark định lượng ở dưới.</p>
+      </div>
+    </div>
+  </section>
+
+  <section>
+    <div class="section-head">
+      <h2>Benchmark Dashboard</h2>
+      <p id="dashSub">Đang tải kết quả benchmark…</p>
+    </div>
+    <div class="controls" style="margin-bottom:16px;">
+      <button id="benchQuickBtn">▶ Chạy nhanh (test ~30s)</button>
+      <button id="benchFullBtn">▶ Chạy đầy đủ (~7-10 phút)</button>
+      <span id="benchStatus" class="mono" style="color:var(--muted);font-size:12px;"></span>
+    </div>
+    <pre id="benchLog" class="mono" style="display:none;background:#000;color:#9ca3af;border:1px solid var(--line);border-radius:10px;padding:14px 16px;max-height:220px;overflow-y:auto;font-size:11.5px;line-height:1.5;white-space:pre-wrap;margin-bottom:20px;"></pre>
+    <div id="dashArea"></div>
+  </section>
+
+  <footer>
+    Nguồn phát dùng chung: <code>Postgres LISTEN/NOTIFY</code> — đảm bảo latency đo được là độ trễ thật của từng kênh truyền.
+  </footer>
+
+</div>
+
+<script src="/app.js"></script>
+</body>
+</html>

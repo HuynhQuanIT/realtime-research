@@ -1,0 +1,20 @@
+{
+  "method": "fcm",
+  "clients": 50,
+  "durationSec": 20,
+  "connectedClients": 50,
+  "failedClients": 0,
+  "samples": 950,
+  "latencyMs": {
+    "avg": 113.07263157894737,
+    "p50": 112,
+    "p95": 165,
+    "p99": 169,
+    "max": 170
+  },
+  "ramMB": {
+    "avg": 84.75263157894737,
+    "max": 84.76
+  },
+  "cpuUserMsPerSample": 3.3157894736842106
+}
