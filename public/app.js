@@ -1,10 +1,43 @@
-// Màu sắc chuẩn theo chủ đề cho Chart.js
+// Màu theo kênh — dùng chung cho card, chip, và biểu đồ Chart.js
 const COLORS = {
-  poll: '#f97316',
+  poll: '#f59e0b',
   sse:  '#10b981',
-  ws:   '#3b82f6',
-  fcm:  '#a855f7'
+  ws:   '#4f46e5',
+  fcm:  '#ec4899'
 };
+
+// ---------------------------------------------------------------
+// ĐIỀU HƯỚNG SIDEBAR — chuyển view, không reload trang.
+// Các kết nối chat/live-demo vẫn chạy nền dù đang xem view khác,
+// nên rời tab Chat rồi quay lại không mất tin nhắn.
+// ---------------------------------------------------------------
+const VIEW_META = {
+  home:    { eyebrow: 'Notify Bench · Trang chủ',      title: 'Xin chào 👋',                  sub: () => 'Tổng quan hệ thống so sánh Polling · SSE · WebSocket · FCM' },
+  compare: { eyebrow: 'Notify Bench · So sánh cơ chế',  title: 'So sánh 4 cơ chế real-time',    sub: () => 'Cùng 1 nguồn Postgres LISTEN/NOTIFY, đo latency thật của từng kênh' },
+  chat:    { eyebrow: 'Notify Bench · Chat thử nghiệm', title: 'Chat thử nghiệm 2 chiều',       sub: () => `Đang ở phòng: ${currentRoom}` },
+  profile: { eyebrow: 'Notify Bench · Cá nhân',         title: 'Thông tin cá nhân',              sub: () => 'Tên hiển thị và phòng đang tham gia' },
+};
+
+function switchView(view){
+  document.querySelectorAll('.view').forEach(el => el.style.display = 'none');
+  document.getElementById('view-' + view).style.display = '';
+  document.querySelectorAll('.nav-item[data-view]').forEach(el => el.classList.toggle('active', el.dataset.view === view));
+
+  const meta = VIEW_META[view];
+  document.getElementById('viewEyebrow').textContent = meta.eyebrow;
+  document.getElementById('viewTitle').textContent = meta.title;
+  document.getElementById('viewSubtitle').textContent = meta.sub();
+
+  if (view === 'home') loadHomeStats();
+  if (view === 'profile') renderProfile();
+}
+
+document.querySelectorAll('.nav-item[data-view]').forEach(item => {
+  item.addEventListener('click', () => switchView(item.dataset.view));
+});
+document.querySelectorAll('[data-goto]').forEach(el => {
+  el.addEventListener('click', () => switchView(el.dataset.goto));
+});
 
 function pulse(method, latencyMs){
   const chan = document.getElementById('chan-'+method);
@@ -23,9 +56,6 @@ function pulse(method, latencyMs){
 // Có 4 kết nối RIÊNG (không dùng chung với 4 card Live Demo phía trên),
 // đều mở kèm ?room=<currentRoom> nên chỉ nhận tin nhắn đúng phòng.
 // Đổi phòng -> đóng 4 kết nối cũ, mở lại 4 kết nối mới theo phòng mới.
-// Việc lọc theo room diễn ra Y HỆT nhau ở cả 4 kênh (server.js), nên
-// không làm lệch phép so sánh — chỉ thêm 1 phép so sánh chuỗi rất nhỏ,
-// như nhau ở cả 4 phía.
 // ---------------------------------------------------------------
 const seenMsgIds = new Set();
 const tally = { poll: 0, sse: 0, ws: 0, fcm: 0 };
@@ -37,37 +67,77 @@ const CHAT_LABELS = { poll: 'Polling', sse: 'SSE', ws: 'WebSocket', fcm: 'FCM' }
 
 chatNameInput.value = localStorage.getItem('chatName') || ('User-' + Math.floor(1000 + Math.random() * 9000));
 localStorage.setItem('chatName', chatNameInput.value);
-chatNameInput.addEventListener('change', () => localStorage.setItem('chatName', chatNameInput.value));
+
+function applyDisplayName(name){
+  chatNameInput.value = name;
+  localStorage.setItem('chatName', name);
+  document.getElementById('sidebarName').textContent = name;
+  document.getElementById('sidebarAvatar').textContent = name.slice(0, 2).toUpperCase();
+  const pi = document.getElementById('profileNameInput');
+  if (pi) pi.value = name;
+  const pa = document.getElementById('profileAvatar');
+  if (pa) pa.textContent = name.slice(0, 2).toUpperCase();
+}
+applyDisplayName(chatNameInput.value);
+chatNameInput.addEventListener('change', () => applyDisplayName(chatNameInput.value.trim() || chatNameInput.value));
 
 let currentRoom = localStorage.getItem('chatRoom') || 'lobby';
 chatRoomInput.value = currentRoom;
 chatRoomInput.placeholder = 'lobby';
 
 const roomTabbar = document.getElementById('roomTabbar');
+let lastRoomList = [];
 
 async function loadRoomList(){
   try{
     const res = await fetch('/rooms');
     const { rooms } = await res.json();
+    lastRoomList = rooms || [];
     if (!rooms || rooms.length === 0){
       roomTabbar.innerHTML = '<span class="room-chip-empty">Chưa có phòng nào — gửi tin để tạo phòng đầu tiên.</span>';
-      return;
-    }
-    roomTabbar.innerHTML = rooms.map(r => `
-      <button class="room-chip ${r.room === currentRoom ? 'active' : ''}" data-room="${r.room}">
-        ${r.room} <span class="n">${r.msg_count}</span>
-      </button>
-    `).join('');
-    roomTabbar.querySelectorAll('.room-chip').forEach(chip => {
-      chip.addEventListener('click', () => {
-        const room = chip.dataset.room;
-        chatRoomInput.value = room;
-        joinRoom(room);
+    } else {
+      roomTabbar.innerHTML = rooms.map(r => `
+        <button class="room-chip ${r.room === currentRoom ? 'active' : ''}" data-room="${r.room}">
+          ${r.room} <span class="n">${r.msg_count}</span>
+        </button>
+      `).join('');
+      roomTabbar.querySelectorAll('.room-chip').forEach(chip => {
+        chip.addEventListener('click', () => {
+          const room = chip.dataset.room;
+          chatRoomInput.value = room;
+          joinRoom(room);
+        });
       });
-    });
+    }
+    renderHomeRoomList();
   }catch(e){}
 }
-loadRoomList();
+
+function renderHomeRoomList(){
+  const el = document.getElementById('homeRoomList');
+  if (!el) return;
+  if (!lastRoomList.length){
+    el.innerHTML = '<div class="room-chip-empty">Chưa có phòng nào hoạt động.</div>';
+    return;
+  }
+  const dotColors = ['#4f46e5', '#06b6d4', '#10b981', '#f59e0b', '#ec4899'];
+  el.innerHTML = lastRoomList.slice(0, 6).map((r, i) => `
+    <div class="sched-item" data-room="${r.room}">
+      <div class="info">
+        <div class="dotbar" style="background:${dotColors[i % dotColors.length]}"></div>
+        <div><div class="st">${r.room}</div><div class="sr">${r.msg_count} tin nhắn</div></div>
+      </div>
+      <div class="sd num">${new Date(r.last_at).toLocaleDateString('vi-VN')}</div>
+    </div>
+  `).join('');
+  el.querySelectorAll('.sched-item').forEach(item => {
+    item.addEventListener('click', () => {
+      chatRoomInput.value = item.dataset.room;
+      joinRoom(item.dataset.room);
+      switchView('chat');
+    });
+  });
+}
 
 function renderTally(){
   tallyList.innerHTML = Object.keys(tally).map(m => `
@@ -97,7 +167,7 @@ function appendChatMessage(payload, viaMethod, latencyMs){
 }
 
 function handleChatIncoming(method, payload, latencyMs){
-  if (seenMsgIds.has(payload.id)) return; // kênh khác trong PHÒNG NÀY đã "về đầu" trước
+  if (seenMsgIds.has(payload.id)) return;
   seenMsgIds.add(payload.id);
   tally[method] = (tally[method] || 0) + 1;
   renderTally();
@@ -170,6 +240,11 @@ function joinRoom(room){
   currentRoom = room;
   localStorage.setItem('chatRoom', room);
   loadRoomList();
+  if (document.getElementById('view-chat').style.display !== 'none'){
+    document.getElementById('viewSubtitle').textContent = VIEW_META.chat.sub();
+  }
+  const pcr = document.getElementById('profileCurrentRoom');
+  if (pcr) pcr.textContent = room;
 
   fetch('/messages?room=' + encodeURIComponent(room) + '&limit=50')
     .then(r => r.json())
@@ -230,7 +305,7 @@ document.querySelectorAll('.tab').forEach(btn => btn.addEventListener('click', (
   });
 }));
 
-// WebSocket
+// WebSocket (card Live Demo — không lọc room, luôn thấy toàn bộ traffic)
 function connectWs(){
   const proto = location.protocol === 'https:' ? 'wss' : 'ws';
   const ws = new WebSocket(`${proto}://${location.host}/ws`);
@@ -321,7 +396,10 @@ async function startBench(preset){
     stream.close();
     setBenchButtonsDisabled(false);
     benchStatusEl.textContent = 'Xong — đang tải lại biểu đồ…';
-    loadDashboard().then(() => { benchStatusEl.textContent = 'Đã cập nhật dashboard.'; });
+    loadDashboard().then(() => {
+      benchStatusEl.textContent = 'Đã cập nhật dashboard.';
+      loadHomeStats();
+    });
   });
   stream.onerror = () => {
     stream.close();
@@ -332,7 +410,10 @@ async function startBench(preset){
 
 benchQuickBtn.addEventListener('click', () => startBench(true));
 benchFullBtn.addEventListener('click', () => startBench(false));
-
+document.getElementById('homeRunBenchBtn').addEventListener('click', () => {
+  switchView('compare');
+  startBench(true);
+});
 
 async function loadDashboard(){
   const sub = document.getElementById('dashSub');
@@ -347,7 +428,7 @@ async function loadDashboard(){
     const { file, rows } = await res.json();
     if (!rows || rows.length === 0){
       sub.textContent = 'Chưa có kết quả benchmark';
-      area.innerHTML = '<div class="empty-state">Không tìm thấy file kết quả trong <code>loadtest/results/</code>.</div>';
+      area.innerHTML = '<div class="empty-state">Không tìm thấy file kết quả trong <code>loadtest/results/</code>. Bấm "Chạy nhanh" ở trên để tạo dữ liệu.</div>';
       return;
     }
     sub.textContent = `Nguồn dữ liệu: ${file} · ${rows.length} lượt đo`;
@@ -362,7 +443,7 @@ async function loadDashboard(){
         <div class="card"><h3>RAM Server sử dụng (MB)</h3><canvas id="chartRam"></canvas></div>
         <div class="card"><h3>CPU Tăng trung bình (ms / sample)</h3><canvas id="chartCpu"></canvas></div>
       </div>
-      <div class="card" style="margin-top:20px;">
+      <div class="card" style="margin-top:16px;">
         <h3>Bảng số liệu chi tiết</h3>
         <div style="overflow-x:auto;">
         <table>
@@ -370,8 +451,8 @@ async function loadDashboard(){
           <tbody>
             ${rows.map(r => `<tr>
               <td><span class="method-badge badge-${r.method}">${r.method}</span></td>
-              <td><b>${r.clients}</b></td>
-              <td style="color:${COLORS[r.method]}">${Number(r.latency_avg_ms).toFixed(1)} ms</td>
+              <td><b class="num">${r.clients}</b></td>
+              <td style="color:${COLORS[r.method]};font-weight:600;">${Number(r.latency_avg_ms).toFixed(1)} ms</td>
               <td>${r.latency_p50_ms} ms</td>
               <td>${r.latency_p95_ms} ms</td>
               <td>${r.latency_p99_ms} ms</td>
@@ -387,11 +468,13 @@ async function loadDashboard(){
 
     const dataset = (metricKey) => methods.map(m => ({
       label: m.toUpperCase(),
-      borderColor: COLORS[m] || '#ffffff',
-      backgroundColor: COLORS[m] || '#ffffff',
+      borderColor: COLORS[m] || '#0b0b0c',
+      backgroundColor: COLORS[m] || '#0b0b0c',
       borderWidth: 3,
       pointRadius: 4,
       pointHoverRadius: 6,
+      pointBackgroundColor: '#fff',
+      pointBorderWidth: 2,
       data: clientLevels.map(c => {
         const row = rows.find(r => r.method===m && r.clients===c);
         return row ? Number(row[metricKey]) : null;
@@ -405,18 +488,18 @@ async function loadDashboard(){
       interaction: { mode: 'index', intersect: false },
       scales: {
         x: {
-          grid: { color: '#1f2937' },
-          ticks: { color: '#9ca3af', font: { family: 'IBM Plex Mono', size: 11 } },
-          title: { display: true, text: 'Số lượng Clients kết nối', color: '#6b7280', font: { size: 11 } }
+          grid: { color: '#e8e9ed' },
+          ticks: { color: '#70737c', font: { family: 'JetBrains Mono', size: 11 } },
+          title: { display: true, text: 'Số lượng Clients kết nối', color: '#70737c', font: { size: 11 } }
         },
         y: {
-          grid: { color: '#1f2937' },
-          ticks: { color: '#9ca3af', font: { family: 'IBM Plex Mono', size: 11 } }
+          grid: { color: '#e8e9ed' },
+          ticks: { color: '#70737c', font: { family: 'JetBrains Mono', size: 11 } }
         }
       },
       plugins: {
         legend: {
-          labels: { color: '#f3f4f6', font: { family: 'IBM Plex Mono', size: 12, weight: 'bold' }, usePointStyle: true, pointStyle: 'circle' }
+          labels: { color: '#0b0b0c', font: { family: 'JetBrains Mono', size: 12, weight: 'bold' }, usePointStyle: true, pointStyle: 'circle' }
         }
       }
     };
@@ -426,9 +509,46 @@ async function loadDashboard(){
     new Chart(document.getElementById('chartRam'), { type:'line', data:{labels:clientLevels, datasets:dataset('ram_avg_mb')}, options: baseOpts });
     new Chart(document.getElementById('chartCpu'), { type:'line', data:{labels:clientLevels, datasets:dataset('cpu_user_ms_per_sample')}, options: baseOpts });
 
+    return rows;
   }catch(e){
     sub.textContent = 'Lỗi tải dữ liệu';
     area.innerHTML = `<div class="empty-state">Lỗi: ${e.message}</div>`;
   }
 }
+
+// ---------------------------------------------------------------
+// TRANG CHỦ — số liệu tổng quan lấy từ /rooms + /results
+// ---------------------------------------------------------------
+async function loadHomeStats(){
+  try{
+    const roomsRes = await fetch('/rooms');
+    const { rooms } = await roomsRes.json();
+    lastRoomList = rooms || [];
+    document.getElementById('statRooms').textContent = (rooms || []).length;
+    document.getElementById('statMessages').textContent = (rooms || []).reduce((s, r) => s + r.msg_count, 0);
+    renderHomeRoomList();
+  }catch(e){}
+
+  try{
+    const res = await fetch('/results');
+    const { rows } = await res.json();
+    document.getElementById('statRuns').textContent = (rows || []).length;
+  }catch(e){
+    document.getElementById('statRuns').textContent = '0';
+  }
+}
+
+function renderProfile(){
+  document.getElementById('profileNameInput').value = chatNameInput.value;
+  document.getElementById('profileAvatar').textContent = chatNameInput.value.slice(0, 2).toUpperCase();
+  document.getElementById('profileCurrentRoom').textContent = currentRoom;
+}
+document.getElementById('profileNameInput').addEventListener('change', (e) => {
+  const name = e.target.value.trim();
+  if (!name) return;
+  applyDisplayName(name);
+});
+
+// Khởi động
 loadDashboard();
+loadHomeStats();
