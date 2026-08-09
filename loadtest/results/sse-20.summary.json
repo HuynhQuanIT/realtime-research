@@ -6,15 +6,15 @@
   "failedClients": 0,
   "samples": 80,
   "latencyMs": {
-    "avg": 14.5125,
-    "p50": 21,
-    "p95": 23,
-    "p99": 23,
-    "max": 23
+    "avg": 9.8125,
+    "p50": 8,
+    "p95": 17,
+    "p99": 17,
+    "max": 17
   },
   "ramMB": {
-    "avg": 58.6725,
-    "max": 58.68
+    "avg": 58.6175,
+    "max": 58.75
   },
   "cpuUserMsPerSample": 0
 }

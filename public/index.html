@@ -10,7 +10,47 @@
 <script src="/vendor/chart.umd.js"></script>
 </head>
 <body>
-<div class="shell">
+
+<!-- ============ MÀN HÌNH ĐĂNG NHẬP / ĐĂNG KÝ ============ -->
+<div id="authScreen" class="auth-screen">
+  <div class="auth-card">
+    <div class="brand" style="padding:0 0 18px;">
+      <div class="mark">N</div>
+      <div>
+        <div class="t1">notify-benchmark</div>
+        <div class="t2">Realtime comparison</div>
+      </div>
+    </div>
+
+    <div class="auth-tabbar">
+      <button class="auth-tab active" data-authtab="login">Đăng nhập</button>
+      <button class="auth-tab" data-authtab="register">Tạo tài khoản</button>
+    </div>
+
+    <form id="loginForm" class="auth-form">
+      <label class="field-label">Username</label>
+      <input id="loginUsername" type="text" autocomplete="username" required />
+      <label class="field-label" style="margin-top:10px;">Mật khẩu</label>
+      <input id="loginPassword" type="password" autocomplete="current-password" required />
+      <div class="auth-error" id="loginError"></div>
+      <button type="submit" class="auth-submit">Đăng nhập</button>
+    </form>
+
+    <form id="registerForm" class="auth-form" style="display:none;">
+      <label class="field-label">Username</label>
+      <input id="registerUsername" type="text" autocomplete="username" required minlength="3" />
+      <label class="field-label" style="margin-top:10px;">Tên hiển thị</label>
+      <input id="registerDisplayName" type="text" autocomplete="nickname" />
+      <label class="field-label" style="margin-top:10px;">Mật khẩu (tối thiểu 6 ký tự)</label>
+      <input id="registerPassword" type="password" autocomplete="new-password" required minlength="6" />
+      <div class="auth-error" id="registerError"></div>
+      <button type="submit" class="auth-submit">Tạo tài khoản</button>
+    </form>
+  </div>
+</div>
+
+<div class="shell" id="appShell" style="display:none;">
+
 
   <!-- ============ SIDEBAR ============ -->
   <aside class="sidebar">
@@ -59,6 +99,9 @@
         <div class="name" id="sidebarName">—</div>
         <div class="role">Người tham gia</div>
       </div>
+      <button class="logout-btn" id="logoutBtn" title="Đăng xuất">
+        <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
+      </button>
     </div>
   </aside>
 

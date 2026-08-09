@@ -32,7 +32,42 @@ body{
 .mono, .num{ font-family:'JetBrains Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
 code{ background:var(--line-soft); padding:1px 6px; border-radius:4px; font-family:'JetBrains Mono',monospace; font-size:12px; }
 
-/* ================= SHELL / SIDEBAR ================= */
+/* ================= AUTH SCREEN ================= */
+.auth-screen{
+  min-height:100vh; display:flex; align-items:center; justify-content:center;
+  background:var(--bg); padding:20px;
+}
+.auth-card{
+  width:100%; max-width:380px; background:var(--panel); border:1px solid var(--line);
+  border-radius:16px; padding:28px 28px 26px; box-shadow:0 10px 40px rgba(0,0,0,.06);
+}
+.auth-tabbar{ display:flex; gap:4px; margin-bottom:18px; border-bottom:1px solid var(--line); }
+.auth-tab{
+  flex:1; font-family:'Inter',sans-serif; font-size:13.5px; font-weight:600;
+  background:transparent; color:var(--muted); border:none; border-bottom:2px solid transparent;
+  padding:10px 0; cursor:pointer;
+}
+.auth-tab.active{ color:var(--ink); border-bottom-color:var(--ink); }
+.auth-form input{
+  width:100%; font-family:'Inter',sans-serif; font-size:14px; padding:10px 12px;
+  border:1px solid var(--line); border-radius:8px; background:var(--panel-2); color:var(--ink);
+  margin-top:4px;
+}
+.auth-submit{
+  width:100%; margin-top:18px; background:var(--ink); color:#fff; border:none; border-radius:8px;
+  padding:11px; font-family:'Inter',sans-serif; font-size:14px; font-weight:700; cursor:pointer;
+}
+.auth-submit:hover{ opacity:.88; }
+.auth-submit:disabled{ opacity:.5; cursor:not-allowed; }
+.auth-error{ color:#dc2626; font-size:12.5px; margin-top:10px; min-height:0; }
+
+.logout-btn{
+  margin-left:auto; background:transparent; border:none; color:#b3b5bd; cursor:pointer;
+  padding:6px; border-radius:6px; display:flex; align-items:center; justify-content:center;
+}
+.logout-btn:hover{ color:#dc2626; background:var(--line-soft); }
+
+/* ================= SIDEBAR (giữ nguyên các rule cũ bên dưới) ================= */
 .shell{ display:grid; grid-template-columns:248px 1fr; min-height:100vh; }
 
 .sidebar{

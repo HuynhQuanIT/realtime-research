@@ -1,13 +1,14 @@
-version: "3.8"
 services:
   postgres:
     image: postgres:16-alpine
+    container_name: notifybench-postgres
+    restart: unless-stopped
     environment:
       POSTGRES_DB: notifybench
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
     ports:
-      - "5433:5432"
+      - "127.0.0.1:5433:5432"
     volumes:
       - ./db/schema.sql:/docker-entrypoint-initdb.d/init.sql
       - pgdata:/var/lib/postgresql/data

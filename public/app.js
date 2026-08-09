@@ -1,3 +1,94 @@
+// ---------------------------------------------------------------
+// XÁC THỰC — kiểm tra phiên đăng nhập trước, chỉ khởi động phần còn lại
+// của app (chat, live demo, dashboard...) sau khi xác nhận đã đăng nhập.
+// Toàn bộ logic app cũ được gói trong hàm boot(), gọi 1 lần duy nhất.
+// ---------------------------------------------------------------
+const authScreen = document.getElementById('authScreen');
+const appShell = document.getElementById('appShell');
+let CURRENT_USER = null;
+let appBooted = false;
+
+function showAuthScreen(){
+  authScreen.style.display = 'flex';
+  appShell.style.display = 'none';
+}
+
+function showApp(){
+  authScreen.style.display = 'none';
+  appShell.style.display = '';
+  if (!appBooted){
+    appBooted = true;
+    boot();
+  }
+}
+
+// tab Đăng nhập / Tạo tài khoản
+document.querySelectorAll('.auth-tab').forEach(tab => {
+  tab.addEventListener('click', () => {
+    document.querySelectorAll('.auth-tab').forEach(t => t.classList.remove('active'));
+    tab.classList.add('active');
+    const which = tab.dataset.authtab;
+    document.getElementById('loginForm').style.display = which === 'login' ? '' : 'none';
+    document.getElementById('registerForm').style.display = which === 'register' ? '' : 'none';
+  });
+});
+
+document.getElementById('loginForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errEl = document.getElementById('loginError');
+  errEl.textContent = '';
+  const username = document.getElementById('loginUsername').value.trim();
+  const password = document.getElementById('loginPassword').value;
+  try{
+    const res = await fetch('/auth/login', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Đăng nhập thất bại'; return; }
+    CURRENT_USER = data;
+    showApp();
+  }catch(err){ errEl.textContent = 'Không kết nối được server'; }
+});
+
+document.getElementById('registerForm').addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errEl = document.getElementById('registerError');
+  errEl.textContent = '';
+  const username = document.getElementById('registerUsername').value.trim();
+  const displayName = document.getElementById('registerDisplayName').value.trim();
+  const password = document.getElementById('registerPassword').value;
+  try{
+    const res = await fetch('/auth/register', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ username, password, displayName }),
+    });
+    const data = await res.json();
+    if (!res.ok) { errEl.textContent = data.error || 'Tạo tài khoản thất bại'; return; }
+    CURRENT_USER = data;
+    showApp();
+  }catch(err){ errEl.textContent = 'Không kết nối được server'; }
+});
+
+async function checkExistingSession(){
+  try{
+    const res = await fetch('/auth/me');
+    if (res.ok){
+      const data = await res.json();
+      CURRENT_USER = { username: data.username, displayName: data.username };
+      showApp();
+      return;
+    }
+  }catch(e){}
+  showAuthScreen();
+}
+checkExistingSession();
+
+// ---------------------------------------------------------------
+// TOÀN BỘ APP — chỉ chạy sau khi đăng nhập thành công (gọi từ showApp()).
+// ---------------------------------------------------------------
+function boot(){
+
 // Màu theo kênh — dùng chung cho card, chip, và biểu đồ Chart.js
 const COLORS = {
   poll: '#f59e0b',
@@ -65,7 +156,7 @@ const chatRoomInput = document.getElementById('chatRoom');
 const tallyList = document.getElementById('tallyList');
 const CHAT_LABELS = { poll: 'Polling', sse: 'SSE', ws: 'WebSocket', fcm: 'FCM' };
 
-chatNameInput.value = localStorage.getItem('chatName') || ('User-' + Math.floor(1000 + Math.random() * 9000));
+chatNameInput.value = localStorage.getItem('chatName') || CURRENT_USER.username || ('User-' + Math.floor(1000 + Math.random() * 9000));
 localStorage.setItem('chatName', chatNameInput.value);
 
 function applyDisplayName(name){
@@ -88,15 +179,37 @@ chatRoomInput.placeholder = 'lobby';
 const roomTabbar = document.getElementById('roomTabbar');
 let lastRoomList = [];
 
+// ---------------------------------------------------------------
+// DANH SÁCH PHÒNG — RIÊNG THEO TỪNG TRÌNH DUYỆT
+// GET /rooms trả về MỌI phòng từng có tin nhắn trên server (dùng để lọc
+// theo tên phòng khi stream vẫn đúng). Nhưng nếu render thẳng danh sách
+// đó ra UI, ai mở trang cũng thấy tên mọi phòng đang tồn tại, kể cả
+// phòng họ chưa từng được cho biết tên -> phá vỡ tính riêng tư "2 người
+// tự thoả thuận tên phòng". Nên ở đây lọc lại: chỉ hiển thị phòng mà
+// CHÍNH trình duyệt này đã từng chủ động join (lưu trong localStorage
+// của máy đó), các trình duyệt khác không tự động thấy các phòng này.
+// ---------------------------------------------------------------
+const MY_ROOMS_KEY = 'myRooms';
+function getMyRooms(){
+  try { return JSON.parse(localStorage.getItem(MY_ROOMS_KEY) || '[]'); }
+  catch (e) { return []; }
+}
+function rememberMyRoom(room){
+  const set = new Set(getMyRooms());
+  set.add(room);
+  localStorage.setItem(MY_ROOMS_KEY, JSON.stringify([...set]));
+}
+
 async function loadRoomList(){
   try{
     const res = await fetch('/rooms');
     const { rooms } = await res.json();
-    lastRoomList = rooms || [];
-    if (!rooms || rooms.length === 0){
+    const mine = getMyRooms();
+    lastRoomList = (rooms || []).filter(r => mine.includes(r.room));
+    if (lastRoomList.length === 0){
       roomTabbar.innerHTML = '<span class="room-chip-empty">Chưa có phòng nào — gửi tin để tạo phòng đầu tiên.</span>';
     } else {
-      roomTabbar.innerHTML = rooms.map(r => `
+      roomTabbar.innerHTML = lastRoomList.map(r => `
         <button class="room-chip ${r.room === currentRoom ? 'active' : ''}" data-room="${r.room}">
           ${r.room} <span class="n">${r.msg_count}</span>
         </button>
@@ -239,6 +352,7 @@ function joinRoom(room){
 
   currentRoom = room;
   localStorage.setItem('chatRoom', room);
+  rememberMyRoom(room);
   loadRoomList();
   if (document.getElementById('view-chat').style.display !== 'none'){
     document.getElementById('viewSubtitle').textContent = VIEW_META.chat.sub();
@@ -523,9 +637,10 @@ async function loadHomeStats(){
   try{
     const roomsRes = await fetch('/rooms');
     const { rooms } = await roomsRes.json();
-    lastRoomList = rooms || [];
-    document.getElementById('statRooms').textContent = (rooms || []).length;
-    document.getElementById('statMessages').textContent = (rooms || []).reduce((s, r) => s + r.msg_count, 0);
+    const mine = getMyRooms();
+    lastRoomList = (rooms || []).filter(r => mine.includes(r.room));
+    document.getElementById('statRooms').textContent = lastRoomList.length;
+    document.getElementById('statMessages').textContent = lastRoomList.reduce((s, r) => s + r.msg_count, 0);
     renderHomeRoomList();
   }catch(e){}
 
@@ -552,3 +667,10 @@ document.getElementById('profileNameInput').addEventListener('change', (e) => {
 // Khởi động
 loadDashboard();
 loadHomeStats();
+
+} // hết hàm boot()
+
+document.getElementById('logoutBtn').addEventListener('click', async () => {
+  try{ await fetch('/auth/logout', { method: 'POST' }); }catch(e){}
+  location.reload(); // reload cho sạch, tránh giữ WS/SSE cũ còn mở
+});
