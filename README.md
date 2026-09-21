@@ -121,3 +121,4 @@ await admin.messaging().sendEachForMulticast({ tokens, notification: {...} });
 
 
 # Telegram notification test
+Update lại secrets key bot_token
