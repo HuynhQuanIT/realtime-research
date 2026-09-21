@@ -85,6 +85,7 @@ async function initPg() {
       display_name TEXT NOT NULL,
       created_at TIMESTAMPTZ NOT NULL DEFAULT now()
     );
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user';
     CREATE OR REPLACE FUNCTION notify_new_message() RETURNS trigger AS $f$
     BEGIN
       PERFORM pg_notify(
@@ -351,7 +352,11 @@ const COOKIE_NAME = 'nb_token';
 const COOKIE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 ngày
 
 function setAuthCookie(res, user) {
-  const token = jwt.sign({ uid: user.id, username: user.username }, JWT_SECRET, { expiresIn: '7d' });
+  const token = jwt.sign(
+    { uid: user.id, username: user.username, displayName: user.display_name, role: user.role },
+    JWT_SECRET,
+    { expiresIn: '7d' }
+  );
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: 'lax',
@@ -369,13 +374,17 @@ app.post('/auth/register', async (req, res) => {
   }
   try {
     const hash = await bcrypt.hash(password, 10);
+    // Người đăng ký ĐẦU TIÊN của hệ thống tự động là admin — không cần
+    // sửa DB thủ công. Từ người thứ 2 trở đi mặc định role 'user'.
+    const countResult = await pgClient.query('SELECT COUNT(*)::int AS n FROM users');
+    const role = countResult.rows[0].n === 0 ? 'admin' : 'user';
     const result = await pgClient.query(
-      'INSERT INTO users(username, password_hash, display_name) VALUES ($1, $2, $3) RETURNING id, username, display_name',
-      [username.trim(), hash, (displayName || username).trim()]
+      'INSERT INTO users(username, password_hash, display_name, role) VALUES ($1, $2, $3, $4) RETURNING id, username, display_name, role',
+      [username.trim(), hash, (displayName || username).trim(), role]
     );
     const user = result.rows[0];
     setAuthCookie(res, user);
-    res.status(201).json({ username: user.username, displayName: user.display_name });
+    res.status(201).json({ username: user.username, displayName: user.display_name, role: user.role });
   } catch (err) {
     if (err.code === '23505') { // unique_violation
       return res.status(409).json({ error: 'Username đã tồn tại' });
@@ -397,7 +406,7 @@ app.post('/auth/login', async (req, res) => {
     const ok = await bcrypt.compare(password, user.password_hash);
     if (!ok) return res.status(401).json({ error: 'Sai username hoặc mật khẩu' });
     setAuthCookie(res, user);
-    res.json({ username: user.username, displayName: user.display_name });
+    res.json({ username: user.username, displayName: user.display_name, role: user.role });
   } catch (err) {
     console.error('[auth/login] error:', err.message);
     res.status(500).json({ error: 'Đăng nhập thất bại' });
@@ -414,9 +423,36 @@ app.get('/auth/me', (req, res) => {
   if (!token) return res.status(401).json({ error: 'Chưa đăng nhập' });
   try {
     const payload = jwt.verify(token, JWT_SECRET);
-    res.json({ username: payload.username });
+    res.json({ username: payload.username, displayName: payload.displayName || payload.username, role: payload.role || 'user' });
   } catch (e) {
     res.status(401).json({ error: 'Phiên đăng nhập hết hạn' });
+  }
+});
+
+// ---------------------------------------------------------------
+// ADMIN — danh sách user đã đăng ký. Chỉ role 'admin' mới xem được.
+// ---------------------------------------------------------------
+function getAuthUser(req) {
+  const token = req.cookies?.[COOKIE_NAME];
+  if (!token) return null;
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch (e) {
+    return null;
+  }
+}
+
+app.get('/admin/users', async (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) return res.status(401).json({ error: 'Chưa đăng nhập' });
+  if (user.role !== 'admin') return res.status(403).json({ error: 'Chỉ admin mới xem được danh sách này' });
+  try {
+    const result = await pgClient.query(
+      'SELECT id, username, display_name, role, created_at FROM users ORDER BY id ASC'
+    );
+    res.json({ users: result.rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
   }
 });
 

@@ -1,0 +1,5 @@
+method,clients,duration_s,connected,failed,samples,latency_avg_ms,latency_p50_ms,latency_p95_ms,latency_p99_ms,latency_max_ms,ram_avg_mb,ram_max_mb,cpu_user_ms_per_sample
+poll,100,15,100,0,1247,1391.6,1030,2027,2092,2099,63.5,64.5,33.50
+poll,500,15,500,0,6498,1312.3,1006,1990,2006,2019,72.7,74.7,99.36
+poll,1000,15,1000,0,12573,1315.7,1076,2084,2159,2181,87.0,89.7,160.71
+poll,50000,15,50000,0,2,2201.5,2202,2202,2202,2202,88.3,88.3,0

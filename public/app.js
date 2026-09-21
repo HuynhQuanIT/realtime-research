@@ -3,17 +3,26 @@
 // của app (chat, live demo, dashboard...) sau khi xác nhận đã đăng nhập.
 // Toàn bộ logic app cũ được gói trong hàm boot(), gọi 1 lần duy nhất.
 // ---------------------------------------------------------------
+const landingScreen = document.getElementById('landingScreen');
 const authScreen = document.getElementById('authScreen');
 const appShell = document.getElementById('appShell');
 let CURRENT_USER = null;
 let appBooted = false;
 
+function showLanding(){
+  landingScreen.style.display = '';
+  authScreen.style.display = 'none';
+  appShell.style.display = 'none';
+}
+
 function showAuthScreen(){
+  landingScreen.style.display = 'none';
   authScreen.style.display = 'flex';
   appShell.style.display = 'none';
 }
 
 function showApp(){
+  landingScreen.style.display = 'none';
   authScreen.style.display = 'none';
   appShell.style.display = '';
   if (!appBooted){
@@ -21,6 +30,10 @@ function showApp(){
     boot();
   }
 }
+
+document.getElementById('landingLoginBtn').addEventListener('click', showAuthScreen);
+document.getElementById('landingCtaBtn').addEventListener('click', showAuthScreen);
+document.getElementById('authBackBtn').addEventListener('click', showLanding);
 
 // tab Đăng nhập / Tạo tài khoản
 document.querySelectorAll('.auth-tab').forEach(tab => {
@@ -75,12 +88,12 @@ async function checkExistingSession(){
     const res = await fetch('/auth/me');
     if (res.ok){
       const data = await res.json();
-      CURRENT_USER = { username: data.username, displayName: data.username };
+      CURRENT_USER = { username: data.username, displayName: data.displayName || data.username, role: data.role || 'user' };
       showApp();
       return;
     }
   }catch(e){}
-  showAuthScreen();
+  showLanding();
 }
 checkExistingSession();
 
@@ -107,7 +120,14 @@ const VIEW_META = {
   compare: { eyebrow: 'Notify Bench · So sánh cơ chế',  title: 'So sánh 4 cơ chế real-time',    sub: () => 'Cùng 1 nguồn Postgres LISTEN/NOTIFY, đo latency thật của từng kênh' },
   chat:    { eyebrow: 'Notify Bench · Chat thử nghiệm', title: 'Chat thử nghiệm 2 chiều',       sub: () => `Đang ở phòng: ${currentRoom}` },
   profile: { eyebrow: 'Notify Bench · Cá nhân',         title: 'Thông tin cá nhân',              sub: () => 'Tên hiển thị và phòng đang tham gia' },
+  admin:   { eyebrow: 'Notify Bench · Quản trị',        title: 'Quản lý người dùng',             sub: () => 'Danh sách toàn bộ tài khoản đã đăng ký' },
 };
+
+// Chỉ admin mới thấy mục "Quản lý người dùng" trong sidebar
+if (CURRENT_USER && CURRENT_USER.role === 'admin') {
+  document.getElementById('adminNavGroup').style.display = '';
+  document.getElementById('sidebarRole').textContent = 'Admin';
+}
 
 function switchView(view){
   document.querySelectorAll('.view').forEach(el => el.style.display = 'none');
@@ -121,6 +141,30 @@ function switchView(view){
 
   if (view === 'home') loadHomeStats();
   if (view === 'profile') renderProfile();
+  if (view === 'admin') loadAdminUsers();
+}
+
+async function loadAdminUsers(){
+  const sub = document.getElementById('adminUsersSub');
+  const body = document.getElementById('adminUsersBody');
+  try{
+    const res = await fetch('/admin/users');
+    if (res.status === 403){ sub.textContent = 'Chỉ admin mới xem được danh sách này.'; body.innerHTML = ''; return; }
+    if (!res.ok){ sub.textContent = 'Không tải được danh sách.'; return; }
+    const { users } = await res.json();
+    sub.textContent = `Tổng ${users.length} tài khoản`;
+    body.innerHTML = users.map(u => `
+      <tr>
+        <td class="num">${u.id}</td>
+        <td><b>${u.username}</b></td>
+        <td>${u.display_name}</td>
+        <td><span class="method-badge" style="background:${u.role === 'admin' ? '#0b0b0c' : '#70737c'};">${u.role}</span></td>
+        <td class="num">${new Date(u.created_at).toLocaleString('vi-VN')}</td>
+      </tr>
+    `).join('');
+  }catch(e){
+    sub.textContent = 'Lỗi tải danh sách: ' + e.message;
+  }
 }
 
 document.querySelectorAll('.nav-item[data-view]').forEach(item => {
@@ -156,7 +200,7 @@ const chatRoomInput = document.getElementById('chatRoom');
 const tallyList = document.getElementById('tallyList');
 const CHAT_LABELS = { poll: 'Polling', sse: 'SSE', ws: 'WebSocket', fcm: 'FCM' };
 
-chatNameInput.value = localStorage.getItem('chatName') || CURRENT_USER.username || ('User-' + Math.floor(1000 + Math.random() * 9000));
+chatNameInput.value = CURRENT_USER.displayName || CURRENT_USER.username || ('User-' + Math.floor(1000 + Math.random() * 9000));
 localStorage.setItem('chatName', chatNameInput.value);
 
 function applyDisplayName(name){

@@ -11,9 +11,65 @@
 </head>
 <body>
 
+<!-- ============ TRANG GIỚI THIỆU HỆ THỐNG ============ -->
+<div id="landingScreen" class="landing">
+  <nav class="landing-nav">
+    <div class="brand">
+      <div class="mark">N</div>
+      <div>
+        <div class="t1">notify-benchmark</div>
+        <div class="t2">Realtime comparison</div>
+      </div>
+    </div>
+    <button class="admin-btn" id="landingLoginBtn">Đăng nhập</button>
+  </nav>
+
+  <header class="landing-hero">
+    <div class="eyebrow" style="color:#9ca0b3;">Đồ án so sánh 4 cơ chế real-time</div>
+    <h1>Polling <span>vs</span> SSE <span>vs</span> WebSocket <span>vs</span> FCM</h1>
+    <p>So sánh công bằng 4 cơ chế đẩy dữ liệu thời gian thực — cùng xuất phát từ một nguồn
+      <code>Postgres LISTEN/NOTIFY</code> duy nhất — để đo đúng độ trễ thực của từng kênh truyền,
+      không lệch do khác nguồn phát.</p>
+    <button class="admin-btn" id="landingCtaBtn" style="padding:12px 26px;font-size:14px;">Bắt đầu — Đăng nhập</button>
+  </header>
+
+  <section class="landing-features">
+    <div class="lf-card" style="border-top:3px solid var(--c-poll);">
+      <div class="lf-name" style="color:var(--c-poll);">Polling</div>
+      <div class="lf-desc">Client tự hỏi lại server theo chu kỳ cố định — đơn giản, dễ triển khai, nhưng độ trễ phụ thuộc trực tiếp vào chu kỳ hỏi.</div>
+    </div>
+    <div class="lf-card" style="border-top:3px solid var(--c-sse);">
+      <div class="lf-name" style="color:var(--c-sse);">SSE</div>
+      <div class="lf-desc">Server-Sent Events — server chủ động đẩy dữ liệu qua 1 kết nối HTTP giữ mở, một chiều, nhẹ hơn WebSocket.</div>
+    </div>
+    <div class="lf-card" style="border-top:3px solid var(--c-ws);">
+      <div class="lf-name" style="color:var(--c-ws);">WebSocket</div>
+      <div class="lf-desc">Kết nối hai chiều, liên tục — độ trễ thấp nhất trong 4 kênh, phù hợp cho chat thời gian thực.</div>
+    </div>
+    <div class="lf-card" style="border-top:3px solid var(--c-fcm);">
+      <div class="lf-name" style="color:var(--c-fcm);">FCM (mock)</div>
+      <div class="lf-desc">Mô phỏng push notification qua bên thứ ba (kiểu Firebase) — có round-trip riêng, khác bản chất với 3 kênh còn lại.</div>
+    </div>
+  </section>
+
+  <section class="landing-secondary">
+    <div class="ls-card">
+      <div class="ls-title">📊 Benchmark Dashboard</div>
+      <div class="ls-desc">Chạy benchmark thật ngay trên UI, xem biểu đồ latency/RAM/CPU theo từng mức tải, không cần mở terminal riêng.</div>
+    </div>
+    <div class="ls-card">
+      <div class="ls-title">💬 Chat thử nghiệm 2 chiều</div>
+      <div class="ls-desc">Chat thật theo phòng riêng, xem kênh nào đưa tin nhắn tới bạn nhanh nhất trong điều kiện thực tế.</div>
+    </div>
+  </section>
+
+  <footer class="landing-foot">Cần tài khoản để vào hệ thống — đăng ký miễn phí, không cần email xác thực.</footer>
+</div>
+
 <!-- ============ MÀN HÌNH ĐĂNG NHẬP / ĐĂNG KÝ ============ -->
-<div id="authScreen" class="auth-screen">
+<div id="authScreen" class="auth-screen" style="display:none;">
   <div class="auth-card">
+    <button class="auth-back" id="authBackBtn">&larr; Quay lại giới thiệu</button>
     <div class="brand" style="padding:0 0 18px;">
       <div class="mark">N</div>
       <div>
@@ -50,6 +106,7 @@
 </div>
 
 <div class="shell" id="appShell" style="display:none;">
+
 
 
   <!-- ============ SIDEBAR ============ -->
@@ -91,13 +148,21 @@
           Thông tin cá nhân
         </div>
       </div>
+
+      <div class="nav-group" id="adminNavGroup" style="display:none;">
+        <div class="nav-label">Quản trị</div>
+        <div class="nav-item" data-view="admin">
+          <span class="ic"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M17 21v-2a4 4 0 0 0-4-4H5a4 4 0 0 0-4 4v2"/><circle cx="9" cy="7" r="4"/><path d="M23 21v-2a4 4 0 0 0-3-3.87"/><path d="M16 3.13a4 4 0 0 1 0 7.75"/></svg></span>
+          Quản lý người dùng
+        </div>
+      </div>
     </nav>
 
     <div class="sidebar-foot">
       <div class="avatar" id="sidebarAvatar">?</div>
       <div>
         <div class="name" id="sidebarName">—</div>
-        <div class="role">Người tham gia</div>
+        <div class="role" id="sidebarRole">Người tham gia</div>
       </div>
       <button class="logout-btn" id="logoutBtn" title="Đăng xuất">
         <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M9 21H5a2 2 0 0 1-2-2V5a2 2 0 0 1 2-2h4"/><path d="M16 17l5-5-5-5"/><path d="M21 12H9"/></svg>
@@ -111,7 +176,7 @@
     <div class="header">
       <div>
         <div class="eyebrow" id="viewEyebrow">Notify Bench · Trang chủ</div>
-        <h1 id="viewTitle">Xin chào 👋</h1>
+        <h1 id="viewTitle">Xin chào</h1>
         <div class="date" id="viewSubtitle">Đang tải…</div>
       </div>
     </div>
@@ -310,6 +375,20 @@
             Dữ liệu benchmark định lượng nằm ở tab "So sánh cơ chế"; khung Chat dùng để kiểm chứng
             hành vi thực tế khi 2 người dùng thật nhắn qua lại.
           </p>
+        </div>
+      </div>
+    </section>
+
+    <!-- ======== VIEW: QUẢN LÝ NGƯỜI DÙNG (chỉ admin) ======== -->
+    <section class="view" id="view-admin" style="display:none;">
+      <div class="card">
+        <h3>Danh sách tài khoản đã đăng ký</h3>
+        <div class="sub" id="adminUsersSub">Đang tải…</div>
+        <div style="overflow-x:auto;">
+          <table>
+            <thead><tr><th>ID</th><th>Username</th><th>Tên hiển thị</th><th>Vai trò</th><th>Ngày tạo</th></tr></thead>
+            <tbody id="adminUsersBody"></tbody>
+          </table>
         </div>
       </div>
     </section>

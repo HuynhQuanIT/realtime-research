@@ -118,3 +118,6 @@ await admin.messaging().sendEachForMulticast({ tokens, notification: {...} });
   (mỗi request là 1 round-trip HTTP đầy đủ).
 - Dùng CSV từ `bench-all.sh` để vẽ biểu đồ latency/RAM theo số client cho
   từng phương pháp, đó chính là dữ liệu để chốt kiến trúc cuối cùng.
+
+
+# Telegram notification test

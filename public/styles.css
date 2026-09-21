@@ -32,6 +32,52 @@ body{
 .mono, .num{ font-family:'JetBrains Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
 code{ background:var(--line-soft); padding:1px 6px; border-radius:4px; font-family:'JetBrains Mono',monospace; font-size:12px; }
 
+/* ================= LANDING PAGE ================= */
+.landing{ min-height:100vh; background:var(--bg); }
+.landing-nav{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:20px 40px; max-width:1100px; margin:0 auto;
+}
+.landing-hero{
+  max-width:760px; margin:40px auto 0; padding:0 24px; text-align:center;
+}
+.landing-hero .eyebrow{ font-size:12px; letter-spacing:.1em; text-transform:uppercase; font-weight:700; }
+.landing-hero h1{
+  font-family:'Inter',sans-serif; font-weight:800; font-size:clamp(30px,5vw,46px);
+  margin:14px 0 16px; letter-spacing:-0.01em; color:var(--ink);
+}
+.landing-hero h1 span{ color:var(--muted); font-weight:400; font-size:.7em; }
+.landing-hero p{ color:var(--muted); font-size:15px; line-height:1.7; margin-bottom:26px; }
+
+.landing-features{
+  max-width:1100px; margin:48px auto 0; padding:0 24px;
+  display:grid; grid-template-columns:repeat(4,1fr); gap:16px;
+}
+@media(max-width:900px){ .landing-features{ grid-template-columns:repeat(2,1fr); } }
+@media(max-width:560px){ .landing-features{ grid-template-columns:1fr; } .landing-nav{ padding:16px 20px; } }
+.lf-card{ background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px; }
+.lf-name{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:14.5px; margin-bottom:8px; }
+.lf-desc{ font-size:12.5px; color:var(--muted); line-height:1.6; }
+
+.landing-secondary{
+  max-width:1100px; margin:16px auto 0; padding:0 24px;
+  display:grid; grid-template-columns:1fr 1fr; gap:16px;
+}
+@media(max-width:700px){ .landing-secondary{ grid-template-columns:1fr; } }
+.ls-card{ background:var(--panel-2); border:1px solid var(--line); border-radius:14px; padding:22px; }
+.ls-title{ font-weight:700; font-size:15px; margin-bottom:8px; }
+.ls-desc{ font-size:12.5px; color:var(--muted); line-height:1.6; }
+
+.landing-foot{
+  text-align:center; color:var(--muted); font-size:12px; padding:50px 24px 60px;
+}
+
+.auth-back{
+  background:none; border:none; color:var(--muted); font-family:'Inter',sans-serif; font-size:12.5px;
+  cursor:pointer; padding:0; margin-bottom:16px; display:inline-flex; align-items:center; gap:4px;
+}
+.auth-back:hover{ color:var(--ink); }
+
 /* ================= AUTH SCREEN ================= */
 .auth-screen{
   min-height:100vh; display:flex; align-items:center; justify-content:center;
