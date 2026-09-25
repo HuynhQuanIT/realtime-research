@@ -4,17 +4,17 @@
   "durationSec": 20,
   "connectedClients": 1000,
   "failedClients": 0,
-  "samples": 16557,
+  "samples": 19338,
   "latencyMs": {
-    "avg": 1317.2089750558675,
-    "p50": 1224,
-    "p95": 2069,
-    "p99": 2250,
-    "max": 2278
+    "avg": 1724.396162995139,
+    "p50": 1297,
+    "p95": 4939,
+    "p99": 6625,
+    "max": 7000
   },
   "ramMB": {
-    "avg": 102.7057894736842,
-    "max": 106.03
+    "avg": 115.96555555555554,
+    "max": 124.52
   },
-  "cpuUserMsPerSample": 213.8421052631579
+  "cpuUserMsPerSample": 453.1111111111111
 }

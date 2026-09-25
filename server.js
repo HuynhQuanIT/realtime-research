@@ -22,6 +22,9 @@ const { spawn } = require('child_process');
 const { Client } = require('pg');
 const WebSocket = require('ws');
 const { EventEmitter } = require('events');
+const bcrypt = require('bcryptjs');
+const jwt = require('jsonwebtoken');
+const cookieParser = require('cookie-parser');
 
 const PORT = process.env.PORT || 3000;
 const HOST = '0.0.0.0'; // Bind vào 0.0.0.0 để lắng nghe tất cả các network interface trong WSL/Docker
@@ -29,11 +32,19 @@ const DATABASE_URL =
   process.env.DATABASE_URL || 'postgres://postgres:postgres@localhost:5433/notifybench';
 const CHANNEL = 'new_message';
 
+// Khoá ký JWT — trong đồ án chạy local dùng tạm giá trị mặc định cũng được,
+// nhưng nên đặt JWT_SECRET riêng trong .env nếu deploy cho nhiều người dùng thật.
+const JWT_SECRET = process.env.JWT_SECRET || 'notify-benchmark-dev-secret-doi-neu-deploy-that';
+if (!process.env.JWT_SECRET) {
+  console.warn('[auth] Đang dùng JWT_SECRET mặc định — đặt biến môi trường JWT_SECRET riêng nếu deploy thật.');
+}
+
 const path = require('path');
 const fs = require('fs');
 
 const app = express();
 app.use(express.json());
+app.use(cookieParser());
 app.use(express.static(path.join(__dirname, 'public')));
 
 const server = http.createServer(app);
@@ -66,6 +77,15 @@ async function initPg() {
     );
     ALTER TABLE messages ADD COLUMN IF NOT EXISTS sender TEXT NOT NULL DEFAULT 'anonymous';
     ALTER TABLE messages ADD COLUMN IF NOT EXISTS room TEXT NOT NULL DEFAULT 'lobby';
+
+    CREATE TABLE IF NOT EXISTS users (
+      id BIGSERIAL PRIMARY KEY,
+      username TEXT NOT NULL UNIQUE,
+      password_hash TEXT NOT NULL,
+      display_name TEXT NOT NULL,
+      created_at TIMESTAMPTZ NOT NULL DEFAULT now()
+    );
+    ALTER TABLE users ADD COLUMN IF NOT EXISTS role TEXT NOT NULL DEFAULT 'user';
     CREATE OR REPLACE FUNCTION notify_new_message() RETURNS trigger AS $f$
     BEGIN
       PERFORM pg_notify(
@@ -319,6 +339,122 @@ app.get('/results', (req, res) => {
 });
 
 app.get('/health', (req, res) => res.json({ ok: true }));
+
+// ---------------------------------------------------------------
+// ĐĂNG KÝ / ĐĂNG NHẬP / ĐĂNG XUẤT
+// Mật khẩu hash bằng bcrypt, phiên đăng nhập lưu trong JWT ở cookie
+// httpOnly (JS phía client không đọc được, hạn chế XSS đánh cắp token).
+// Chỉ gác cổng GIAO DIỆN WEB — các endpoint /poll,/sse,/ws,/fcm/stream,
+// POST /messages vẫn để mở như cũ vì bench-all.js/run.js gọi thẳng,
+// không đăng nhập qua trình duyệt.
+// ---------------------------------------------------------------
+const COOKIE_NAME = 'nb_token';
+const COOKIE_MAX_AGE_MS = 7 * 24 * 60 * 60 * 1000; // 7 ngày
+
+function setAuthCookie(res, user) {
+  const token = jwt.sign(
+    { uid: user.id, username: user.username, displayName: user.display_name, role: user.role },
+    JWT_SECRET,
+    { expiresIn: '7d' }
+  );
+  res.cookie(COOKIE_NAME, token, {
+    httpOnly: true,
+    sameSite: 'lax',
+    maxAge: COOKIE_MAX_AGE_MS,
+  });
+}
+
+app.post('/auth/register', async (req, res) => {
+  const { username, password, displayName } = req.body || {};
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Cần username và password' });
+  }
+  if (username.length < 3 || password.length < 6) {
+    return res.status(400).json({ error: 'Username tối thiểu 3 ký tự, mật khẩu tối thiểu 6 ký tự' });
+  }
+  try {
+    const hash = await bcrypt.hash(password, 10);
+    // Người đăng ký ĐẦU TIÊN của hệ thống tự động là admin — không cần
+    // sửa DB thủ công. Từ người thứ 2 trở đi mặc định role 'user'.
+    const countResult = await pgClient.query('SELECT COUNT(*)::int AS n FROM users');
+    const role = countResult.rows[0].n === 0 ? 'admin' : 'user';
+    const result = await pgClient.query(
+      'INSERT INTO users(username, password_hash, display_name, role) VALUES ($1, $2, $3, $4) RETURNING id, username, display_name, role',
+      [username.trim(), hash, (displayName || username).trim(), role]
+    );
+    const user = result.rows[0];
+    setAuthCookie(res, user);
+    res.status(201).json({ username: user.username, displayName: user.display_name, role: user.role });
+  } catch (err) {
+    if (err.code === '23505') { // unique_violation
+      return res.status(409).json({ error: 'Username đã tồn tại' });
+    }
+    console.error('[auth/register] error:', err.message);
+    res.status(500).json({ error: 'Đăng ký thất bại' });
+  }
+});
+
+app.post('/auth/login', async (req, res) => {
+  const { username, password } = req.body || {};
+  if (!username || !password) {
+    return res.status(400).json({ error: 'Cần username và password' });
+  }
+  try {
+    const result = await pgClient.query('SELECT * FROM users WHERE username = $1', [username.trim()]);
+    const user = result.rows[0];
+    if (!user) return res.status(401).json({ error: 'Sai username hoặc mật khẩu' });
+    const ok = await bcrypt.compare(password, user.password_hash);
+    if (!ok) return res.status(401).json({ error: 'Sai username hoặc mật khẩu' });
+    setAuthCookie(res, user);
+    res.json({ username: user.username, displayName: user.display_name, role: user.role });
+  } catch (err) {
+    console.error('[auth/login] error:', err.message);
+    res.status(500).json({ error: 'Đăng nhập thất bại' });
+  }
+});
+
+app.post('/auth/logout', (req, res) => {
+  res.clearCookie(COOKIE_NAME);
+  res.json({ ok: true });
+});
+
+app.get('/auth/me', (req, res) => {
+  const token = req.cookies?.[COOKIE_NAME];
+  if (!token) return res.status(401).json({ error: 'Chưa đăng nhập' });
+  try {
+    const payload = jwt.verify(token, JWT_SECRET);
+    res.json({ username: payload.username, displayName: payload.displayName || payload.username, role: payload.role || 'user' });
+  } catch (e) {
+    res.status(401).json({ error: 'Phiên đăng nhập hết hạn' });
+  }
+});
+
+// ---------------------------------------------------------------
+// ADMIN — danh sách user đã đăng ký. Chỉ role 'admin' mới xem được.
+// ---------------------------------------------------------------
+function getAuthUser(req) {
+  const token = req.cookies?.[COOKIE_NAME];
+  if (!token) return null;
+  try {
+    return jwt.verify(token, JWT_SECRET);
+  } catch (e) {
+    return null;
+  }
+}
+
+app.get('/admin/users', async (req, res) => {
+  const user = getAuthUser(req);
+  if (!user) return res.status(401).json({ error: 'Chưa đăng nhập' });
+  if (user.role !== 'admin') return res.status(403).json({ error: 'Chỉ admin mới xem được danh sách này' });
+  try {
+    const result = await pgClient.query(
+      'SELECT id, username, display_name, role, created_at FROM users ORDER BY id ASC'
+    );
+    res.json({ users: result.rows });
+  } catch (err) {
+    res.status(500).json({ error: err.message });
+  }
+});
 
 // ---------------------------------------------------------------
 // CHẠY BENCHMARK TỪ UI — spawn loadtest/bench-all.js làm tiến trình con,

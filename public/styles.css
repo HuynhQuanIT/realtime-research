@@ -32,7 +32,88 @@ body{
 .mono, .num{ font-family:'JetBrains Mono', ui-monospace, monospace; font-variant-numeric: tabular-nums; }
 code{ background:var(--line-soft); padding:1px 6px; border-radius:4px; font-family:'JetBrains Mono',monospace; font-size:12px; }
 
-/* ================= SHELL / SIDEBAR ================= */
+/* ================= LANDING PAGE ================= */
+.landing{ min-height:100vh; background:var(--bg); }
+.landing-nav{
+  display:flex; align-items:center; justify-content:space-between;
+  padding:20px 40px; max-width:1100px; margin:0 auto;
+}
+.landing-hero{
+  max-width:760px; margin:40px auto 0; padding:0 24px; text-align:center;
+}
+.landing-hero .eyebrow{ font-size:12px; letter-spacing:.1em; text-transform:uppercase; font-weight:700; }
+.landing-hero h1{
+  font-family:'Inter',sans-serif; font-weight:800; font-size:clamp(30px,5vw,46px);
+  margin:14px 0 16px; letter-spacing:-0.01em; color:var(--ink);
+}
+.landing-hero h1 span{ color:var(--muted); font-weight:400; font-size:.7em; }
+.landing-hero p{ color:var(--muted); font-size:15px; line-height:1.7; margin-bottom:26px; }
+
+.landing-features{
+  max-width:1100px; margin:48px auto 0; padding:0 24px;
+  display:grid; grid-template-columns:repeat(4,1fr); gap:16px;
+}
+@media(max-width:900px){ .landing-features{ grid-template-columns:repeat(2,1fr); } }
+@media(max-width:560px){ .landing-features{ grid-template-columns:1fr; } .landing-nav{ padding:16px 20px; } }
+.lf-card{ background:var(--panel); border:1px solid var(--line); border-radius:14px; padding:20px; }
+.lf-name{ font-family:'JetBrains Mono',monospace; font-weight:700; font-size:14.5px; margin-bottom:8px; }
+.lf-desc{ font-size:12.5px; color:var(--muted); line-height:1.6; }
+
+.landing-secondary{
+  max-width:1100px; margin:16px auto 0; padding:0 24px;
+  display:grid; grid-template-columns:1fr 1fr; gap:16px;
+}
+@media(max-width:700px){ .landing-secondary{ grid-template-columns:1fr; } }
+.ls-card{ background:var(--panel-2); border:1px solid var(--line); border-radius:14px; padding:22px; }
+.ls-title{ font-weight:700; font-size:15px; margin-bottom:8px; }
+.ls-desc{ font-size:12.5px; color:var(--muted); line-height:1.6; }
+
+.landing-foot{
+  text-align:center; color:var(--muted); font-size:12px; padding:50px 24px 60px;
+}
+
+.auth-back{
+  background:none; border:none; color:var(--muted); font-family:'Inter',sans-serif; font-size:12.5px;
+  cursor:pointer; padding:0; margin-bottom:16px; display:inline-flex; align-items:center; gap:4px;
+}
+.auth-back:hover{ color:var(--ink); }
+
+/* ================= AUTH SCREEN ================= */
+.auth-screen{
+  min-height:100vh; display:flex; align-items:center; justify-content:center;
+  background:var(--bg); padding:20px;
+}
+.auth-card{
+  width:100%; max-width:380px; background:var(--panel); border:1px solid var(--line);
+  border-radius:16px; padding:28px 28px 26px; box-shadow:0 10px 40px rgba(0,0,0,.06);
+}
+.auth-tabbar{ display:flex; gap:4px; margin-bottom:18px; border-bottom:1px solid var(--line); }
+.auth-tab{
+  flex:1; font-family:'Inter',sans-serif; font-size:13.5px; font-weight:600;
+  background:transparent; color:var(--muted); border:none; border-bottom:2px solid transparent;
+  padding:10px 0; cursor:pointer;
+}
+.auth-tab.active{ color:var(--ink); border-bottom-color:var(--ink); }
+.auth-form input{
+  width:100%; font-family:'Inter',sans-serif; font-size:14px; padding:10px 12px;
+  border:1px solid var(--line); border-radius:8px; background:var(--panel-2); color:var(--ink);
+  margin-top:4px;
+}
+.auth-submit{
+  width:100%; margin-top:18px; background:var(--ink); color:#fff; border:none; border-radius:8px;
+  padding:11px; font-family:'Inter',sans-serif; font-size:14px; font-weight:700; cursor:pointer;
+}
+.auth-submit:hover{ opacity:.88; }
+.auth-submit:disabled{ opacity:.5; cursor:not-allowed; }
+.auth-error{ color:#dc2626; font-size:12.5px; margin-top:10px; min-height:0; }
+
+.logout-btn{
+  margin-left:auto; background:transparent; border:none; color:#b3b5bd; cursor:pointer;
+  padding:6px; border-radius:6px; display:flex; align-items:center; justify-content:center;
+}
+.logout-btn:hover{ color:#dc2626; background:var(--line-soft); }
+
+/* ================= SIDEBAR (giữ nguyên các rule cũ bên dưới) ================= */
 .shell{ display:grid; grid-template-columns:248px 1fr; min-height:100vh; }
 
 .sidebar{

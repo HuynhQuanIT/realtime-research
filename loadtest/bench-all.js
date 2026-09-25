@@ -70,4 +70,4 @@ for (const method of METHODS) {
   }
 }
 
-console.log(`\n✅ Đã hoàn tất! Kết quả lưu tại: ${csvPath}`);
+console.log(`\nĐã hoàn tất! Kết quả lưu tại: ${csvPath}`);
