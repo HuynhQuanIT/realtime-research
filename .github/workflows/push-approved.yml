@@ -1,0 +1,39 @@
+name: Push Approved
+
+on:
+  repository_dispatch:
+    types:
+      - telegram_push_approved
+
+jobs:
+  deploy:
+    runs-on: ubuntu-latest
+
+    steps:
+      - name: Show approval information
+        run: |
+          echo "================================="
+          echo "PUSH APPROVED"
+          echo "================================="
+
+          echo "Repository: ${{ github.repository }}"
+          echo "Branch: ${{ github.event.client_payload.branch }}"
+          echo "Commit: ${{ github.event.client_payload.sha }}"
+          echo "Approved by: ${{ github.event.client_payload.approved_by }}"
+
+      - name: Checkout approved commit
+        uses: actions/checkout@v4
+        with:
+          ref: ${{ github.event.client_payload.sha }}
+
+      - name: Deploy
+        run: |
+          echo "================================="
+          echo "DEPLOY STARTED"
+          echo "================================="
+
+          echo "Deploying commit:"
+          echo "${{ github.event.client_payload.sha }}"
+
+          # TODO:
+          # Thêm lệnh deploy thật của bạn ở đây
