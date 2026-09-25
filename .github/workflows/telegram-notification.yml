@@ -24,8 +24,8 @@ jobs:
           ACTOR: ${{ github.actor }}
 
           BRANCH: ${{ github.ref_name }}
-          COMMIT_SHA: ${{ github.sha }}
           COMMIT_MESSAGE: ${{ github.event.head_commit.message }}
+          COMMIT_SHA: ${{ github.sha }}
           COMPARE_URL: ${{ github.event.compare }}
 
           PR_NUMBER: ${{ github.event.pull_request.number }}
@@ -36,28 +36,25 @@ jobs:
           PR_URL: ${{ github.event.pull_request.html_url }}
 
         run: |
-
           if [ "$EVENT_NAME" = "push" ]; then
 
-            MESSAGE=$(cat <<EOF
-🚀 GITHUB PUSH
-
-📦 Repository: $REPOSITORY
-👤 User: $ACTOR
-🌿 Branch: $BRANCH
-
-📝 Commit:
-$COMMIT_MESSAGE
-
-🔑 SHA:
-$COMMIT_SHA
-
-🔗 $COMPARE_URL
-EOF
-)
+            MESSAGE=$(printf '%s\n' \
+              "🚀 GitHub Push" \
+              "" \
+              "📦 Repository: $REPOSITORY" \
+              "👤 User: $ACTOR" \
+              "🌿 Branch: $BRANCH" \
+              "" \
+              "📝 Commit:" \
+              "$COMMIT_MESSAGE" \
+              "" \
+              "🔑 SHA: $COMMIT_SHA" \
+              "" \
+              "🔗 $COMPARE_URL"
+            )
 
             REPLY_MARKUP=$(jq -nc \
-              --arg approve "push:$COMMIT_SHA:$BRANCH" \
+              --arg approve "approve_push:$COMMIT_SHA:$BRANCH" \
               --arg url "$COMPARE_URL" \
               '{
                 inline_keyboard: [
@@ -72,34 +69,27 @@ EOF
                     }
                   ]
                 ]
-              }')
-
-            curl -s -X POST \
-              "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-              --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
-              --data-urlencode "text=${MESSAGE}" \
-              --data-urlencode "reply_markup=${REPLY_MARKUP}"
+              }'
+            )
 
           elif [ "$EVENT_NAME" = "pull_request" ]; then
 
-            MESSAGE=$(cat <<EOF
-🔔 GITHUB PULL REQUEST
-
-📦 Repository: $REPOSITORY
-👤 User: $ACTOR
-
-🔀 PR #$PR_NUMBER
-📝 $PR_TITLE
-📌 Action: $PR_ACTION
-
-🌿 $HEAD_REF → $BASE_REF
-
-🔗 $PR_URL
-EOF
-)
+            MESSAGE=$(printf '%s\n' \
+              "🔔 GitHub Pull Request" \
+              "" \
+              "📦 Repository: $REPOSITORY" \
+              "👤 User: $ACTOR" \
+              "🔀 PR #$PR_NUMBER" \
+              "📝 $PR_TITLE" \
+              "📌 Action: $PR_ACTION" \
+              "" \
+              "🌿 $HEAD_REF → $BASE_REF" \
+              "" \
+              "🔗 $PR_URL"
+            )
 
             REPLY_MARKUP=$(jq -nc \
-              --arg approve "pr:$PR_NUMBER" \
+              --arg approve "approve_pr:$PR_NUMBER" \
               --arg url "$PR_URL" \
               '{
                 inline_keyboard: [
@@ -114,12 +104,15 @@ EOF
                     }
                   ]
                 ]
-              }')
+              }'
+            )
 
-            curl -s -X POST \
-              "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
-              --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
-              --data-urlencode "text=${MESSAGE}" \
-              --data-urlencode "reply_markup=${REPLY_MARKUP}"
-
+          else
+            exit 0
           fi
+
+          curl --fail-with-body -sS -X POST \
+            "https://api.telegram.org/bot${TELEGRAM_BOT_TOKEN}/sendMessage" \
+            --data-urlencode "chat_id=${TELEGRAM_CHAT_ID}" \
+            --data-urlencode "text=${MESSAGE}" \
+            --data-urlencode "reply_markup=${REPLY_MARKUP}"
