@@ -106,6 +106,14 @@ code{ background:var(--line-soft); padding:1px 6px; border-radius:4px; font-fami
 .auth-submit:hover{ opacity:.88; }
 .auth-submit:disabled{ opacity:.5; cursor:not-allowed; }
 .auth-error{ color:#dc2626; font-size:12.5px; margin-top:10px; min-height:0; }
+.auth-google{ display:flex; justify-content:center; min-height:44px; }
+.auth-divider{ display:flex; align-items:center; gap:10px; color:var(--muted); font-size:12px; margin:14px 0 6px; }
+.auth-divider::before, .auth-divider::after{ content:''; flex:1; height:1px; background:var(--line); }
+.auth-hint{ color:var(--muted); font-size:12.5px; margin-top:10px; line-height:1.5; }
+.auth-form .otp-input{ letter-spacing:.5em; text-align:center; font-family:'JetBrains Mono',monospace; font-size:20px; padding-left:.5em; }
+.auth-row{ display:flex; justify-content:space-between; align-items:center; margin-top:14px; }
+.auth-link{ background:none; border:none; padding:0; font-family:'Inter',sans-serif; font-size:12.5px; font-weight:600; color:var(--c-indigo); cursor:pointer; }
+.auth-link:disabled{ color:var(--muted); cursor:not-allowed; }
 
 .logout-btn{
   margin-left:auto; background:transparent; border:none; color:#b3b5bd; cursor:pointer;

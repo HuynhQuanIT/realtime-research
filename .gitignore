@@ -7,3 +7,9 @@ yarn-error.log*
 .env.*
 coverage/
 .tmp/
+
+bench2/results/
+bench2/results-archive/
+bench2/data/
+dist/
+demo/

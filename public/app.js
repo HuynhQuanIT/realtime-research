@@ -19,6 +19,7 @@ function showAuthScreen(){
   landingScreen.style.display = 'none';
   authScreen.style.display = 'flex';
   appShell.style.display = 'none';
+  initGoogleSignIn();
 }
 
 function showApp(){
@@ -43,6 +44,7 @@ document.querySelectorAll('.auth-tab').forEach(tab => {
     const which = tab.dataset.authtab;
     document.getElementById('loginForm').style.display = which === 'login' ? '' : 'none';
     document.getElementById('registerForm').style.display = which === 'register' ? '' : 'none';
+    document.getElementById('otpPanel').style.display = which === 'otp' ? '' : 'none';
   });
 });
 
@@ -82,6 +84,174 @@ document.getElementById('registerForm').addEventListener('submit', async (e) => 
     showApp();
   }catch(err){ errEl.textContent = 'Không kết nối được server'; }
 });
+
+// ---------------------------------------------------------------
+// ĐĂNG NHẬP BẰNG EMAIL + MÃ OTP
+// B1: nhập email -> server gửi mã 6 số. B2: nhập mã -> vào hệ thống.
+// ---------------------------------------------------------------
+const otpRequestForm = document.getElementById('otpRequestForm');
+const otpVerifyForm = document.getElementById('otpVerifyForm');
+const otpResendBtn = document.getElementById('otpResendBtn');
+let otpEmail = '';
+let otpResendTimer = null;
+
+function otpShowStep(step){
+  otpRequestForm.style.display = step === 'email' ? '' : 'none';
+  otpVerifyForm.style.display = step === 'code' ? '' : 'none';
+}
+
+function otpStartCooldown(seconds){
+  clearInterval(otpResendTimer);
+  let left = seconds;
+  const tick = () => {
+    if (left > 0){
+      otpResendBtn.disabled = true;
+      otpResendBtn.textContent = 'Gửi lại mã (' + left + 's)';
+      left--;
+    } else {
+      clearInterval(otpResendTimer);
+      otpResendBtn.disabled = false;
+      otpResendBtn.textContent = 'Gửi lại mã';
+    }
+  };
+  tick();
+  otpResendTimer = setInterval(tick, 1000);
+}
+
+// Gửi yêu cầu mã. Trả về true nếu server đã gửi mail.
+async function otpRequestCode(email, errEl){
+  errEl.textContent = '';
+  try{
+    const res = await fetch('/auth/otp/request', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok){
+      errEl.textContent = data.error || 'Không gửi được mã';
+      if (res.status === 429 && data.retryAfter) otpStartCooldown(data.retryAfter);
+      return false;
+    }
+    otpEmail = email;
+    otpStartCooldown(data.resendIn || 60);
+    return true;
+  }catch(err){
+    errEl.textContent = 'Không kết nối được server';
+    return false;
+  }
+}
+
+otpRequestForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const btn = document.getElementById('otpRequestBtn');
+  const email = document.getElementById('otpEmail').value.trim().toLowerCase();
+  btn.disabled = true;
+  const ok = await otpRequestCode(email, document.getElementById('otpRequestError'));
+  btn.disabled = false;
+  if (!ok) return;
+  document.getElementById('otpSentHint').textContent = 'Đã gửi mã 6 số tới ' + email + '. Mã có hiệu lực 5 phút. Hãy kiểm tra cả thư mục Spam.';
+  document.getElementById('otpVerifyError').textContent = '';
+  document.getElementById('otpCode').value = '';
+  otpShowStep('code');
+  document.getElementById('otpCode').focus();
+});
+
+otpResendBtn.addEventListener('click', async () => {
+  otpResendBtn.disabled = true;
+  const errEl = document.getElementById('otpVerifyError');
+  const ok = await otpRequestCode(otpEmail, errEl);
+  if (ok){
+    document.getElementById('otpCode').value = '';
+    errEl.textContent = 'Đã gửi mã mới. Mã cũ không còn dùng được.';
+    errEl.style.color = 'var(--muted)';
+    setTimeout(() => { errEl.style.color = ''; }, 4000);
+  }
+});
+
+document.getElementById('otpChangeEmailBtn').addEventListener('click', () => {
+  clearInterval(otpResendTimer);
+  otpShowStep('email');
+  document.getElementById('otpEmail').focus();
+});
+
+// chỉ cho nhập số
+document.getElementById('otpCode').addEventListener('input', (e) => {
+  e.target.value = e.target.value.replace(/\D/g, '').slice(0, 6);
+});
+
+otpVerifyForm.addEventListener('submit', async (e) => {
+  e.preventDefault();
+  const errEl = document.getElementById('otpVerifyError');
+  const btn = document.getElementById('otpVerifyBtn');
+  errEl.textContent = '';
+  errEl.style.color = '';
+  const code = document.getElementById('otpCode').value.trim();
+  btn.disabled = true;
+  try{
+    const res = await fetch('/auth/otp/verify', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ email: otpEmail, code }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok){ errEl.textContent = data.error || 'Xác nhận thất bại'; return; }
+    clearInterval(otpResendTimer);
+    document.getElementById('otpCode').value = '';
+    CURRENT_USER = data;
+    showApp();
+  }catch(err){ errEl.textContent = 'Không kết nối được server'; }
+  finally{ btn.disabled = false; }
+});
+
+// ---------------------------------------------------------------
+// ĐĂNG NHẬP BẰNG GOOGLE (Google Identity Services)
+// Server cho biết có cấu hình GOOGLE_CLIENT_ID không qua /auth/config;
+// không có thì ẩn nút, các cách đăng nhập khác vẫn dùng bình thường.
+// ---------------------------------------------------------------
+let googleInitStarted = false;
+
+function loadExternalScript(src){
+  return new Promise((resolve, reject) => {
+    const s = document.createElement('script');
+    s.src = src; s.async = true; s.defer = true;
+    s.onload = resolve;
+    s.onerror = () => reject(new Error('Không tải được ' + src));
+    document.head.appendChild(s);
+  });
+}
+
+async function onGoogleCredential(resp){
+  const errEl = document.getElementById('googleError');
+  errEl.textContent = '';
+  try{
+    const res = await fetch('/auth/google', {
+      method: 'POST', headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ credential: resp.credential }),
+    });
+    const data = await res.json().catch(() => ({}));
+    if (!res.ok){ errEl.textContent = data.error || 'Đăng nhập Google thất bại'; return; }
+    CURRENT_USER = data;
+    showApp();
+  }catch(err){ errEl.textContent = 'Không kết nối được server'; }
+}
+
+async function initGoogleSignIn(){
+  if (googleInitStarted) return;
+  googleInitStarted = true;
+  try{
+    const cfg = await (await fetch('/auth/config')).json();
+    if (!cfg.googleClientId) return;
+    await loadExternalScript('https://accounts.google.com/gsi/client');
+    google.accounts.id.initialize({ client_id: cfg.googleClientId, callback: onGoogleCredential });
+    google.accounts.id.renderButton(document.getElementById('googleBtn'), {
+      type: 'standard', theme: 'outline', size: 'large', text: 'continue_with',
+      shape: 'rectangular', logo_alignment: 'left', width: 324, locale: 'vi',
+    });
+    document.getElementById('googleAuthBlock').style.display = '';
+  }catch(err){
+    googleInitStarted = false; // cho phép thử lại lần mở màn hình đăng nhập sau
+    console.warn('[google] không khởi tạo được nút đăng nhập:', err.message);
+  }
+}
 
 async function checkExistingSession(){
   try{

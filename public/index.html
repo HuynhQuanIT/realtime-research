@@ -78,12 +78,42 @@
       </div>
     </div>
 
+    <!-- Đăng nhập bằng Google (chỉ hiện khi server có GOOGLE_CLIENT_ID) -->
+    <div id="googleAuthBlock" style="display:none;">
+      <div id="googleBtn" class="auth-google"></div>
+      <div class="auth-error" id="googleError"></div>
+      <div class="auth-divider"><span>hoặc</span></div>
+    </div>
+
     <div class="auth-tabbar">
-      <button class="auth-tab active" data-authtab="login">Đăng nhập</button>
+      <button class="auth-tab active" data-authtab="otp">Email</button>
+      <button class="auth-tab" data-authtab="login">Username</button>
       <button class="auth-tab" data-authtab="register">Tạo tài khoản</button>
     </div>
 
-    <form id="loginForm" class="auth-form">
+    <!-- Đăng nhập bằng email + mã OTP -->
+    <div id="otpPanel">
+      <form id="otpRequestForm" class="auth-form">
+        <label class="field-label">Email</label>
+        <input id="otpEmail" type="email" autocomplete="email" inputmode="email" required maxlength="254" placeholder="ban@example.com" />
+        <div class="auth-hint">Chúng tôi sẽ gửi mã 6 số vào email của bạn. Chưa có tài khoản thì sẽ được tạo tự động.</div>
+        <div class="auth-error" id="otpRequestError"></div>
+        <button type="submit" class="auth-submit" id="otpRequestBtn">Gửi mã</button>
+      </form>
+      <form id="otpVerifyForm" class="auth-form" style="display:none;">
+        <div class="auth-hint" id="otpSentHint" style="margin-top:0;"></div>
+        <label class="field-label" style="margin-top:14px;">Mã xác nhận (6 số)</label>
+        <input id="otpCode" class="otp-input" type="text" inputmode="numeric" autocomplete="one-time-code" pattern="[0-9]{6}" maxlength="6" required placeholder="------" />
+        <div class="auth-error" id="otpVerifyError"></div>
+        <button type="submit" class="auth-submit" id="otpVerifyBtn">Xác nhận và đăng nhập</button>
+        <div class="auth-row">
+          <button type="button" class="auth-link" id="otpResendBtn" disabled>Gửi lại mã</button>
+          <button type="button" class="auth-link" id="otpChangeEmailBtn">Đổi email</button>
+        </div>
+      </form>
+    </div>
+
+    <form id="loginForm" class="auth-form" style="display:none;">
       <label class="field-label">Username</label>
       <input id="loginUsername" type="text" autocomplete="username" required />
       <label class="field-label" style="margin-top:10px;">Mật khẩu</label>

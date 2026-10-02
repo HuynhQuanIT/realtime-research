@@ -100,6 +100,8 @@ async function initPg() {
     FOR EACH ROW EXECUTE FUNCTION notify_new_message();
   `);
 
+  await authExtras.migrate(); // thêm cột email/google_sub + bảng login_otps
+
   await pgClient.query(`LISTEN ${CHANNEL}`);
   pgClient.on('notification', (msg) => {
     try {
@@ -360,9 +362,15 @@ function setAuthCookie(res, user) {
   res.cookie(COOKIE_NAME, token, {
     httpOnly: true,
     sameSite: 'lax',
+    secure: process.env.COOKIE_SECURE === '1', // đặt COOKIE_SECURE=1 khi chạy qua HTTPS
     maxAge: COOKIE_MAX_AGE_MS,
   });
 }
+
+// ---------------------------------------------------------------
+// Đăng nhập bằng Google + đăng nhập email OTP (xem auth-extra.js)
+// ---------------------------------------------------------------
+const authExtras = require('./auth-extra')({ app, pgClient, setAuthCookie });
 
 app.post('/auth/register', async (req, res) => {
   const { username, password, displayName } = req.body || {};
@@ -402,7 +410,7 @@ app.post('/auth/login', async (req, res) => {
   try {
     const result = await pgClient.query('SELECT * FROM users WHERE username = $1', [username.trim()]);
     const user = result.rows[0];
-    if (!user) return res.status(401).json({ error: 'Sai username hoặc mật khẩu' });
+    if (!user || !user.password_hash) return res.status(401).json({ error: 'Sai username hoặc mật khẩu' });
     const ok = await bcrypt.compare(password, user.password_hash);
     if (!ok) return res.status(401).json({ error: 'Sai username hoặc mật khẩu' });
     setAuthCookie(res, user);
