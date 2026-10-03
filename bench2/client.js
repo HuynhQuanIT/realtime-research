@@ -57,8 +57,9 @@ function connectSse(client, path) {
         const parts = b.split('\n\n');
         b = parts.pop();
         for (const p of parts) {
-          if (!p.startsWith('data: ')) continue;
-          try { rec(client, JSON.parse(p.slice(6)), tr); } catch { errors++; }
+          const ev = p.replace(/^\s+/, ''); // dòng trống đầu luồng SSE dính vào sự kiện đầu tiên
+          if (!ev.startsWith('data: ')) continue;
+          try { rec(client, JSON.parse(ev.slice(6)), tr); } catch { errors++; }
         }
       });
       res.on('error', () => {});
@@ -69,7 +70,7 @@ function connectSse(client, path) {
   });
 }
 
-function connectWs(client) {
+function connectWs(client, wsPath = '/ws') {
   return new Promise((resolve) => {
     let settled = false;
     const done = (ok, why, e) => {
@@ -77,12 +78,16 @@ function connectWs(client) {
       if (ok) connected++; else { failed++; if (why === 'timeout') timedOut++; noteErr('ws ' + why, e); }
       resolve();
     };
-    const ws = new WebSocket(cfg.base.replace(/^http/, 'ws') + '/ws');
+    const ws = new WebSocket(cfg.base.replace(/^http/, 'ws') + wsPath);
     const timer = setTimeout(() => { done(false, 'timeout'); ws.terminate(); }, CONNECT_TIMEOUT_MS);
     ws.on('open', () => done(true));
     ws.on('message', (d) => {
       const tr = now();
-      try { rec(client, JSON.parse(d.toString()), tr); } catch { errors++; }
+      try {
+        const m = JSON.parse(d.toString());
+        if (Array.isArray(m)) for (const x of m) rec(client, x, tr); // /wsb: 1 gói chứa nhiều message
+        else rec(client, m, tr);
+      } catch { errors++; }
     });
     ws.on('error', (e) => done(false, 'error', e));
     closers.push(() => ws.terminate());
@@ -127,8 +132,46 @@ async function connectPoll(client) {
   })();
 }
 
+// ---- Biến thể poll theo cách CŨ (để A/B): setInterval, KHÔNG chặn chồng request, tất cả client bắt đầu ĐỒNG THỜI ----
+// poll-herd  : hành vi client cũ + server đã sửa (cursor theo seq)  -> tách riêng ảnh hưởng của "bầy đàn" và chồng request
+// poll-legacy: hành vi client cũ + server cũ (cursor theo giờ, quét cả buffer) -> tái hiện nguyên bản cũ
+const herdStarters = [];
+async function connectPollHerd(client) {
+  let last;
+  try { last = JSON.parse((await get('/poll?init=1')).body).last; connected++; }
+  catch (e) { failed++; noteErr('poll-herd init', e); return; }
+  herdStarters.push(() => {
+    const timer = setInterval(async () => {
+      try {
+        const { body, tr } = await get(`/poll?after=${last}`);
+        const d = JSON.parse(body);
+        if (d.last > last) last = d.last; // request chồng nhau có thể về không theo thứ tự
+        for (const m of d.items) rec(client, m, tr);
+      } catch { errors++; }
+    }, cfg.pollMs);
+    closers.push(() => clearInterval(timer));
+  });
+}
+async function connectPollLegacy(client) {
+  let since = new Date().toISOString(); // như bản cũ: mốc ban đầu = giờ lúc client bắt đầu
+  connected++;
+  herdStarters.push(() => {
+    const timer = setInterval(async () => {
+      try {
+        const { body, tr } = await get(`/poll-legacy?since=${encodeURIComponent(since)}`);
+        const d = JSON.parse(body);
+        since = d.serverTime; // như bản cũ: ghi đè mỗi lần response về
+        for (const m of d.items) rec(client, m, tr);
+      } catch { errors++; }
+    }, cfg.pollMs);
+    closers.push(() => clearInterval(timer));
+  });
+}
+
 async function main() {
-  const conn = { sse: (c) => connectSse(c, '/sse'), push: (c) => connectSse(c, '/push'), ws: connectWs, poll: connectPoll }[cfg.mech];
+  const conn = /^wsb\d*$/.test(cfg.mech) ? (c) => connectWs(c, '/wsb')
+    : { sse: (c) => connectSse(c, '/sse'), push: (c) => connectSse(c, '/push'), ws: (c) => connectWs(c, '/ws'),
+        poll: connectPoll, 'poll-herd': connectPollHerd, 'poll-legacy': connectPollLegacy }[cfg.mech];
   if (!conn) throw new Error('mech?');
   // ramp-up: 50 kết nối / 100ms để không tràn accept backlog (4 worker chạy song song)
   for (let i = 0; i < cfg.n; i += 50) {
@@ -137,6 +180,7 @@ async function main() {
     await Promise.all(batch);
     await new Promise((r) => setTimeout(r, 100));
   }
+  for (const start of herdStarters) start(); // kiểu cũ: mọi timer khởi động cùng 1 tick
   process.send({ type: 'ready', connected, failed, timedOut, firstErrors });
 }
 

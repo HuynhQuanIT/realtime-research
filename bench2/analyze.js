@@ -84,7 +84,8 @@ function analyzeRun(dir) {
   const planned = meta.rate * meta.duration;
   const why = [];
   const postErrExplains = (meta.genErrors || 0) > 0.01 * (meta.sent || 1); // thiếu tin do POST lỗi = quá tải thật, giữ làm dữ liệu
-  if (M < 0.9 * planned && !postErrExplains) why.push(`chỉ ${M}/${Math.round(planned)} message trong cửa sổ đo`);
+  // thiếu quá 10% VÀ quá 2 tin (cửa sổ rất ngắn có thể lệch 1-2 tin ở biên do thời điểm tick)
+  if (M < Math.min(0.9 * planned, planned - 2) && !postErrExplains) why.push(`chỉ ${M}/${Math.round(planned)} message trong cửa sổ đo`);
   if (inWin.length < 3) why.push(`chỉ ${inWin.length} mẫu /stats trong cửa sổ đo`);
   return {
     meta, expected, got, valid: why.length === 0, why: why.join('; '), M, attempt: meta.attempt || 1, postErrRate: (meta.genErrors || 0) / (meta.sent || 1),

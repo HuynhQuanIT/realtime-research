@@ -56,39 +56,53 @@ for (const r of [...rows].sort((a, b) => a.rate - b.rate || a.mech.localeCompare
 const ok = rows.filter((r) => Number.isFinite(r.cpu));
 const rates = [...new Set(ok.map((r) => r.rate))].sort((a, b) => a - b);
 const get = (m, r) => ok.find((x) => x.mech === m && x.rate === r);
+const POLLISH = new Set(['poll', 'poll-herd', 'poll-legacy']);
+const pushMechs = [...new Set(ok.map((r) => r.mech))].filter((m) => !POLLISH.has(m)).sort();
 
-md += '\n## So sánh CPU ws − poll theo rate (CI 95% giữa các run)\n\n| rate | poll % | ws % | ws − poll | kết luận |\n|---|---|---|---|---|\n';
-const diffs = [];
-for (const r of rates) {
-  const p = get('poll', r), w = get('ws', r);
-  if (!p || !w) continue;
-  const d = w.cpu - p.cpu;
-  const c = w.cpuLo > p.cpuHi ? 'ws tốn hơn poll (CI không giao nhau)' : p.cpuLo > w.cpuHi ? 'poll tốn hơn ws (CI không giao nhau)' : 'chưa phân biệt được';
-  const sat = w.elu > 0.5 ? ' [ws gần bão hoà, ELU=' + f(w.elu, 2) + ']' : '';
-  md += `| ${r} | ${f(p.cpu)} | ${f(w.cpu)} | ${f(d)} | ${c}${sat} |\n`;
-  diffs.push({ r, d });
-}
-md += '\n## Điểm giao poll–ws\n\n';
-let crossed = false;
-for (let i = 0; i + 1 < diffs.length; i++) {
-  if (diffs[i].d <= 0 && diffs[i + 1].d > 0) {
-    const x = diffs[i].r + ((0 - diffs[i].d) * (diffs[i + 1].r - diffs[i].r)) / (diffs[i + 1].d - diffs[i].d);
-    md += `Điểm giao nằm giữa **${diffs[i].r}** và **${diffs[i + 1].r} msg/s**; nội suy tuyến tính cho ≈ **${f(x, 1)} msg/s** (chỉ là ước lượng thô giữa hai mức đo).\n`;
-    crossed = true;
-  }
-}
-if (!crossed) md += 'Không thấy đổi dấu ws − poll trong dải rate đã đo (hoặc thiếu dữ liệu ở vài mức).\n';
-
-// mô hình tuyến tính CHỈ trên các điểm chưa bão hoà (ELU < 0.5)
+// ---- so sánh từng biến thể push với poll, tìm điểm giao ----
 const fits = {};
-for (const m of ['poll', 'ws']) {
+for (const m of ['poll', ...pushMechs]) {
   const pts = ok.filter((r) => r.mech === m && r.elu < 0.5).map((r) => ({ x: r.rate, y: r.cpu }));
   if (pts.length >= 3) fits[m] = { ...fit(pts), n: pts.length };
 }
-if (fits.poll && fits.ws) {
+for (const m of pushMechs) {
+  md += `\n## CPU ${m} − poll theo rate (CI 95% giữa các run)\n\n| rate | poll % | ${m} % | ${m} − poll | kết luận |\n|---|---|---|---|---|\n`;
+  const diffs = [];
+  for (const r of rates) {
+    const p = get('poll', r), w = get(m, r);
+    if (!p || !w) continue;
+    const d = w.cpu - p.cpu;
+    const c = w.cpuLo > p.cpuHi ? `${m} tốn hơn poll (CI không giao nhau)` : p.cpuLo > w.cpuHi ? `poll tốn hơn ${m} (CI không giao nhau)` : 'chưa phân biệt được';
+    md += `| ${r} | ${f(p.cpu)} | ${f(w.cpu)} | ${f(d)} | ${c}${w.elu > 0.5 ? ` [${m} gần bão hoà, ELU=${f(w.elu, 2)}]` : ''} |\n`;
+    diffs.push({ r, d });
+  }
+  let crossed = false;
+  for (let i = 0; i + 1 < diffs.length; i++) {
+    if (diffs[i].d <= 0 && diffs[i + 1].d > 0) {
+      const x = diffs[i].r + ((0 - diffs[i].d) * (diffs[i + 1].r - diffs[i].r)) / (diffs[i + 1].d - diffs[i].d);
+      md += `\nĐiểm giao poll–${m}: giữa **${diffs[i].r}** và **${diffs[i + 1].r} msg/s**, nội suy tuyến tính ≈ **${f(x, 1)} msg/s** (ước lượng thô giữa hai mức đo).\n`;
+      crossed = true;
+    }
+  }
+  if (!crossed) {
+    const lastD = diffs.length ? diffs[diffs.length - 1].d : NaN;
+    md += `\nKhông thấy đổi dấu ${m} − poll trong dải rate đã đo` + (Number.isFinite(lastD) ? (lastD < 0 ? `: ${m} rẻ hơn poll ở mọi mức.\n` : `: ${m} tốn hơn poll ở mọi mức.\n`) : '.\n');
+  }
+}
+
+// ---- ngưỡng bão hoà: rate đầu tiên mà ELU >= 0.8 ----
+md += '\n## Ngưỡng bão hoà (ELU của server)\n\n| mech | rate cao nhất có ELU < 0.5 | rate đầu tiên có ELU ≥ 0.8 | rate lớn nhất đã đo |\n|---|---|---|---|\n';
+for (const m of [...new Set(ok.map((r) => r.mech))].sort()) {
+  const rs = ok.filter((r) => r.mech === m).sort((a, b) => a.rate - b.rate);
+  const lowOk = rs.filter((r) => r.elu < 0.5).map((r) => r.rate);
+  const sat = rs.find((r) => r.elu >= 0.8);
+  md += `| ${m} | ${lowOk.length ? Math.max(...lowOk) : '-'} | ${sat ? sat.rate : 'chưa bão hoà'} | ${rs[rs.length - 1].rate} (ELU ${f(rs[rs.length - 1].elu, 2)}) |\n`;
+}
+
+if (Object.keys(fits).length >= 2) {
   md += '\n## Mô hình tuyến tính CPU% = a + b·rate (chỉ các điểm có ELU < 0.5)\n\n| mech | số điểm | a | b (CPU% mỗi msg/s) | R² |\n|---|---|---|---|---|\n';
   for (const [m, k] of Object.entries(fits)) md += `| ${m} | ${k.n} | ${f(k.a, 2)} | ${f(k.b, 3)} | ${f(k.r2, 3)} |\n`;
-  md += '\nLưu ý: điểm bão hoà (ELU cao) làm chi phí mỗi lần giao tăng phi tuyến, nên bị loại khỏi phép fit.\n';
+  md += '\nĐiểm bão hoà (ELU cao) làm chi phí mỗi lần giao tăng phi tuyến nên bị loại khỏi phép fit.\n';
 }
 fs.writeFileSync(path.join(root, `sweep-N${N}.md`), md);
 console.log(md);
